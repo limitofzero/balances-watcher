@@ -9,22 +9,36 @@ use serde::Deserialize;
 use std::{convert::Infallible, time::Duration};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use clap::Parser;
 
 #[derive(Deserialize)]
 struct WalletParams {
     address: String,
 }
 
+#[derive(Parser, Debug, Clone)]
+struct Args {
+    #[arg(long, env = "HTTP_BIND", default_value="0.0.0.0:8080")]
+    pub bind: String,
+}
+
+#[derive(Clone)]
+struct AppState {
+    pub cfg: Args
+}
+
 #[tokio::main]
 async fn main() {
-    // Создаем роутер с SSE endpoint
+    let cfg = Args::parse();
+    let state = AppState {
+        cfg: cfg.clone()
+    };
+
     let app = Router::new()
         .route("/sse", get(sse_handler))
-        // Добавляем CORS для работы с фронтендом
         .layer(tower_http::cors::CorsLayer::permissive());
 
-    // Запускаем сервер на порту 3000
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:4000")
+    let listener = tokio::net::TcpListener::bind(&state.cfg.bind)
         .await
         .expect("Failed to bind to address");
     
@@ -49,13 +63,12 @@ async fn sse_handler(Query(params): Query<WalletParams>) -> Sse<impl Stream<Item
     tx.send(Ok(success_event))
         .expect("Failed to send initial event");
     
-    // Преобразуем receiver в stream
     let stream = UnboundedReceiverStream::new(rx);
     
-    // Настраиваем keep-alive для поддержания соединения
     Sse::new(stream).keep_alive(
         axum::response::sse::KeepAlive::new()
             .interval(Duration::from_secs(15))
             .text("keep-alive-text"),
     )
+
 }
