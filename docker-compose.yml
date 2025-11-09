@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  token-balances-updater:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: token-balances-updater
+    ports:
+      - "4000:8080"
+    env_file:
+      - .env
+    restart: unless-stopped
