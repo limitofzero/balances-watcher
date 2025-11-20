@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::evm_networks::EvmNetworks;
+use crate::evm::networks::EvmNetworks;
 use crate::args::Args;
 
 pub  struct NetworkConfig {

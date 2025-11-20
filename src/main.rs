@@ -1,11 +1,11 @@
 mod args;
 mod network_config;
 
-mod evm_networks;
+mod evm;
 
 use crate::args::Args;
 use crate::network_config::NetworkConfig;
-use evm_networks::EvmNetworks;
+use crate::evm::networks::EvmNetworks;
 
 #[tokio::main]
 async fn main() {
