@@ -16,6 +16,7 @@ pub struct TokenList {
 
 pub type TokenListConfig = HashMap<EvmNetworks, Vec<TokenList>>;
 
+#[derive(Debug)]
 pub  struct NetworkConfig {
     rpcs: HashMap<EvmNetworks, String>,
     token_list: HashMap<EvmNetworks, Vec<TokenList>>,
@@ -46,7 +47,7 @@ impl NetworkConfig {
     pub fn rpc_url(&self, network: EvmNetworks) -> Option<&String> {
         self.rpcs.get(&network)
     }
-    
+
     pub fn token_list(&self, network: EvmNetworks) -> Option<&Vec<TokenList>> {
         self.token_list.get(&network)
     }
