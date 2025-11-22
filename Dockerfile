@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
+COPY configs ./configs
 
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 
@@ -29,6 +30,7 @@ RUN useradd -m -u 1000 appuser
 WORKDIR /app
 
 COPY --from=builder /app/target/release/token-balances-updater /app/token-balances-updater
+COPY --from=builder /app/configs ./configs
 
 RUN chown appuser:appuser /app/token-balances-updater
 
