@@ -1,15 +1,15 @@
 use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u16)]
+#[repr(u64)]
 pub enum EvmNetworks {
     Eth = 1,
     Arbitrum = 42161,
 }
 
 impl EvmNetworks {
-    fn chain_id(self) -> u16 {
-        self as u16
+    pub fn chain_id(self) -> u64 {
+        self as u64
     }
 }
 

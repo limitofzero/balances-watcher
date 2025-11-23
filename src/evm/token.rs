@@ -6,5 +6,5 @@ pub struct Token {
     pub address: String,
     pub name: String,
     pub decimals: u8,
-    pub chain_id: u16,
+    pub chain_id: u64,
 }
