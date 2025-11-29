@@ -7,8 +7,7 @@ use alloy::{primitives::Address};
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
 use axum::http::StatusCode;
-use crate::evm::erc20::ERC20;
-use crate::evm::networks::EvmNetworks;
+use crate::evm::{networks::EvmNetworks, errors::EvmError, erc20::ERC20 };
 
 #[derive(Serialize)]
 pub struct BalanceResponse {
@@ -19,7 +18,7 @@ pub struct BalanceResponse {
 pub async fn get_token_balance(Path((chain, owner, token)): Path<(EvmNetworks, Address, Address)>, State(state): State<Arc<AppState>>) -> Result<Json<BalanceResponse>, (StatusCode, String)> {
     let provider = match state.providers.get(&chain) {
         Some(provider) => provider,
-        None => return Err((StatusCode::NOT_FOUND, "Unsupported network".to_string()))
+        None => return Err((StatusCode::NOT_FOUND, EvmError::UnsupportedNetwork(chain.chain_id()).to_string())),
     };
 
     let erc20 = ERC20::new(token, provider);

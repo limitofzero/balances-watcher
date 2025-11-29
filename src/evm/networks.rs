@@ -1,4 +1,5 @@
 use serde::{Deserialize, Deserializer};
+use crate::evm::errors::EvmError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u64)]
@@ -14,13 +15,13 @@ impl EvmNetworks {
 }
 
 impl TryFrom<u64> for EvmNetworks {
-    type Error = String;
+    type Error = EvmError;
 
-    fn try_from(id: u64) -> Result<Self, String> {
+    fn try_from(id: u64) -> Result<Self, EvmError> {
         match id {
             1 => Ok(EvmNetworks::Eth),
             42161 => Ok(EvmNetworks::Arbitrum),
-            other => Err(format!("unknown EVM network id: {}", other)),
+            _ => Err(EvmError::UnsupportedNetwork(id)),
         }
     }
 }
