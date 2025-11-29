@@ -17,7 +17,7 @@ pub type TokenListConfig = HashMap<EvmNetworks, Vec<TokenList>>;
 
 #[derive(Debug)]
 pub  struct NetworkConfig {
-    rpcs: HashMap<EvmNetworks, String>,
+    pub rpcs: HashMap<EvmNetworks, String>,
     token_list: HashMap<EvmNetworks, Vec<TokenList>>,
 }
 

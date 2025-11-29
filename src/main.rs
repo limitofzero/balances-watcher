@@ -4,7 +4,9 @@ mod evm;
 mod config;
 mod app_state;
 mod routes;
-mod handlers;
+mod api;
+mod services;
+mod infra;
 
 use std::sync::Arc;
 use std::net::SocketAddr;
@@ -28,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("eth rpc url is {eth_rpc}");
 
 
-    let app_state = Arc::new(AppState { network_config: Arc::new(network_cfg) });
+    let app_state = AppState::build(network_cfg).await;
     let app = create_router(app_state);
 
     let address: SocketAddr = cfg.bind.parse()?;
