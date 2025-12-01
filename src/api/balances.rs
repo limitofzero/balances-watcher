@@ -22,6 +22,7 @@ pub async fn get_balances(Path((network, owner)): Path<(EvmNetworks, Address)>, 
     };
 
     let multicall_addr = state.network_config.multicall_address;
+    println!("multicall_addr {}", multicall_addr);
     if multicall_addr.is_zero() {
         return Err((StatusCode::NOT_FOUND, "Multicall address is not set".to_string()));
     }

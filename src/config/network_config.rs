@@ -3,6 +3,8 @@ use serde::Deserialize;
 use crate::evm::networks::EvmNetworks;
 use crate::args::Args;
 use std::fs;
+use std::ops::Mul;
+use std::str::FromStr;
 use alloy::primitives::Address;
 
 #[derive(Debug, Deserialize)]
@@ -41,8 +43,8 @@ impl NetworkConfig {
           serde_json::from_str(content.as_str()).expect("Unable to parse token list file")
         };
 
-        let as_bytes = args.multicall_address.as_bytes();
-        let multicall_address = if as_bytes.len() == 0 { Address::ZERO } else { Address::from_slice(&as_bytes) };
+
+        let multicall_address = Address::from_str(&args.multicall_address).unwrap_or(Address::ZERO);
 
         Self { rpcs, token_list: token_list_config, multicall_address }
     }
