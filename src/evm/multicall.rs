@@ -11,7 +11,8 @@ sol! {
         bytes returnData;
     }
 
-    interface Multicall {
+    #[sol(rpc)]
+    contract Multicall {
         function tryAggregate(bool requireSuccess, Call[] calldata calls) public view returns (Result[] returnData);
     }
 }

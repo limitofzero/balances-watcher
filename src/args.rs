@@ -15,10 +15,11 @@ pub struct Args {
 
     #[arg(long, env="TOKEN_LIST_PATH", default_value=DEFAULT_TOKEN_LIST_PATH)]
     pub token_list_path: String,
+
+    #[arg(long, env="MULTICALL_ADDRESS", default_value="")]
+    pub multicall_address: String
 }
 
 impl Args {
-    pub fn from_env() -> Self {
-        Self::parse()
-    }
+    pub fn from_env() -> Self { Self::parse() }
 }

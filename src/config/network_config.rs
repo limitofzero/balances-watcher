@@ -3,6 +3,7 @@ use serde::Deserialize;
 use crate::evm::networks::EvmNetworks;
 use crate::args::Args;
 use std::fs;
+use alloy::primitives::Address;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,6 +19,7 @@ pub type TokenListConfig = HashMap<EvmNetworks, Vec<TokenList>>;
 #[derive(Debug)]
 pub  struct NetworkConfig {
     pub rpcs: HashMap<EvmNetworks, String>,
+    pub multicall_address: Address,
     token_list: HashMap<EvmNetworks, Vec<TokenList>>,
 }
 
@@ -39,8 +41,10 @@ impl NetworkConfig {
           serde_json::from_str(content.as_str()).expect("Unable to parse token list file")
         };
 
+        let as_bytes = args.multicall_address.as_bytes();
+        let multicall_address = if as_bytes.len() == 0 { Address::ZERO } else { Address::from_slice(&as_bytes) };
 
-        Self { rpcs, token_list: token_list_config }
+        Self { rpcs, token_list: token_list_config, multicall_address }
     }
 
     pub fn rpc_url(&self, network: EvmNetworks) -> Option<&String> {

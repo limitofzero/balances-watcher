@@ -14,9 +14,7 @@ pub async fn get_token_list(Path(network): Path<EvmNetworks>, State(state): Stat
         .network_config
         .token_list(network)
         .unwrap_or(&default_list);
-
-
-
+    
     let active_tokens = tokens_from_list::get_tokens_from_list(&network_token_list, network).await;
 
     Json(active_tokens)
