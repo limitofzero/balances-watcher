@@ -6,7 +6,7 @@ use crate::config::network_config::TokenList;
 use crate::evm::token::Token;
 
 #[derive(Debug, Deserialize)]
-pub  struct ApiResponse {
+pub struct ApiResponse {
     pub tokens: Vec<Token>,
 }
 
@@ -27,7 +27,7 @@ pub async fn get_tokens_from_list(token_list: &Vec<TokenList>, network: crate::e
         }
     }
     
-    return active_tokens;
+    active_tokens
 }
 
 async fn fetch_tokens(token_api_url: &String) -> Result<ApiResponse, reqwest::Error> {

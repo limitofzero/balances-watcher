@@ -5,7 +5,6 @@ use serde::Serialize;
 use crate::app_state::AppState;
 use alloy::{primitives::Address};
 use alloy::primitives::U256;
-use alloy::providers::ProviderBuilder;
 use axum::http::StatusCode;
 use crate::evm::{networks::EvmNetworks, errors::EvmError, erc20::ERC20 };
 
