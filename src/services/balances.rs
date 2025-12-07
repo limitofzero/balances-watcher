@@ -6,8 +6,6 @@ use alloy::primitives::Address;
 use alloy::providers::{DynProvider, Provider};
 use crate::evm::erc20::ERC20;
 
-
-
 pub async fn get_balances(token_list: &Vec<TokenList>, provider: &DynProvider, network: networks::EvmNetworks, owner: Address) -> Result<HashMap<Address, String>, ServiceError> {
     let active_tokens = tokens_from_list::get_tokens_from_list(token_list, network).await;
 

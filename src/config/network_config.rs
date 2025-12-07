@@ -7,7 +7,7 @@ use std::ops::Mul;
 use std::str::FromStr;
 use alloy::primitives::Address;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenList {
     pub priority: u8,

@@ -8,7 +8,7 @@ use crate::api::balances::get_balances;
 pub  fn create_router(app_state: Arc<AppState>) -> Router {
     return Router::new()
         .route("/{chain_id}/tokens-list", get(get_token_list))
-        .route("/{chain_id}/balances/{owner}", get(get_balances))
+        .route("/sse/{chain_id}/balances/{owner}", get(get_balances))
         .route("/{chain_id}/balance/{owner}/{token}", get(get_token_balance))
         .with_state(app_state);
 }
