@@ -10,7 +10,7 @@ use alloy::providers::Provider;
 use alloy::transports::http::reqwest::StatusCode;
 use crate::config::network_config::TokenList;
 use crate::evm::{errors::EvmError, multicall, erc20::ERC20, erc20};
-use crate::services::tokens_from_list;
+use crate::services::balances;
 
 #[derive(Serialize)]
 pub struct BalancesResponse {
@@ -29,30 +29,8 @@ pub async fn get_balances(Path((network, owner)): Path<(EvmNetworks, Address)>, 
         .token_list(network)
         .unwrap_or(&default_list);
 
-    let tokens = tokens_from_list::get_tokens_from_list(&network_token_list, network).await;
-    let tokens: Vec<Address> = tokens.keys().cloned().collect();
-
-    let mut balances_mc  = provider.multicall().dynamic();
-    for address in &tokens {
-        let contract = ERC20::new(address.clone(), provider);
-        let balance_of = contract.balanceOf(owner);
-        balances_mc = balances_mc.add_dynamic(balance_of)
+    match balances::get_balances(&network_token_list, provider, network, owner).await {
+        Ok(balances) => Ok(Json(BalancesResponse{ balances })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
-
-    let balances_resp = match balances_mc.try_aggregate(false).await {
-        Ok(b) => b,
-        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    };
-
-    let mut balances: HashMap<Address, String> = HashMap::new();
-    for (i, balance) in balances_resp.iter().enumerate() {
-        match balance {
-            Ok(correct_balance) => { balances.insert(tokens[i].clone(), correct_balance.to_string()); }
-            Err(_) => {
-                println!("Error getting balance for token {}", tokens[i]);
-            }
-        }
-    }
-
-    Ok(Json(BalancesResponse{ balances }))
 }
