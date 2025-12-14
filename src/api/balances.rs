@@ -1,5 +1,5 @@
 use std::{convert::Infallible, collections::HashMap, time::Duration, sync::Arc};
-use axum::{Json, response::sse::{Sse, Event}, extract::{Path, State}, http::StatusCode};
+use axum::{response::sse::{Sse, Event}, extract::{Path, State}, http::StatusCode};
 use serde::Serialize;
 use crate::app_state::AppState;
 use crate::evm::networks::EvmNetworks;
@@ -20,7 +20,6 @@ pub struct BalancesResponse {
 struct BalanceContext {
     owner: Address,
     provider: DynProvider,
-    network: EvmNetworks,
     tokens: HashMap<Address, Token>,
 }
 
@@ -48,7 +47,6 @@ pub async fn get_balances(
 
     let ctx = Arc::new(BalanceContext {
         provider,
-        network,
         tokens,
         owner,
     });
@@ -63,7 +61,6 @@ pub async fn get_balances(
                 let result = balances::get_balances(
                     &ctx.tokens,
                     &ctx.provider,
-                    ctx.network,
                     ctx.owner
                 ).await;
 

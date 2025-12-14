@@ -9,7 +9,7 @@ use tracing::info;
 use crate::evm::erc20::ERC20;
 use crate::evm::token::Token;
 
-pub async fn get_balances(tokens: &HashMap<Address, Token>, provider: &DynProvider, network: networks::EvmNetworks, owner: Address) -> Result<HashMap<Address, String>, ServiceError> {
+pub async fn get_balances(tokens: &HashMap<Address, Token>, provider: &DynProvider, owner: Address) -> Result<HashMap<Address, String>, ServiceError> {
     let tokens: Vec<Address> = tokens.keys().cloned().collect();
 
     let mut balances_mc  = provider.multicall().dynamic();
