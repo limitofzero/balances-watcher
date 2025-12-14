@@ -7,6 +7,7 @@ mod routes;
 mod api;
 mod services;
 mod infra;
+mod tracing;
 
 use std::sync::Arc;
 use std::net::SocketAddr;
@@ -16,9 +17,11 @@ use crate::evm::{networks::EvmNetworks};
 use app_state::AppState;
 use tokio::net::TcpListener;
 use crate::routes::create_router::create_router;
+use crate::tracing::init_tracing::init_tracing;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    init_tracing();
     let cfg = Args::from_env();
     let network_cfg = NetworkConfig::init(&cfg);
 

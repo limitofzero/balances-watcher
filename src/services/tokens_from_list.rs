@@ -1,9 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant };
+
 use alloy::primitives::Address;
 use alloy::transports::http::reqwest;
 use serde::Deserialize;
 use crate::config::network_config::TokenList;
 use crate::evm::token::Token;
+use tracing::{ info};
 
 #[derive(Debug, Deserialize)]
 pub struct ApiResponse {
@@ -12,6 +14,8 @@ pub struct ApiResponse {
 
 pub async fn get_tokens_from_list(token_list: &Vec<TokenList>, network: crate::evm::networks::EvmNetworks) -> HashMap<Address, Token> {
     let mut active_tokens: HashMap<Address, Token>  = HashMap::new();
+
+    let t0 = Instant::now();
 
     for list in token_list {
         match fetch_tokens(&list.source).await {
@@ -26,6 +30,8 @@ pub async fn get_tokens_from_list(token_list: &Vec<TokenList>, network: crate::e
             Err(e) => println!("error fetching token list from {e} in {}", list.source)
         }
     }
+
+    info!(time = t0.elapsed().as_millis(), "finished fetching tokens");
     
     active_tokens
 }
