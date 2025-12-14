@@ -2,8 +2,10 @@ use crate::config::network_config::TokenList;
 use crate::evm::networks;
 use crate::services::{tokens_from_list, errors::ServiceError};
 use std::collections::HashMap;
+use std::time::Instant;
 use alloy::primitives::Address;
 use alloy::providers::{DynProvider, Provider};
+use tracing::info;
 use crate::evm::erc20::ERC20;
 
 pub async fn get_balances(token_list: &Vec<TokenList>, provider: &DynProvider, network: networks::EvmNetworks, owner: Address) -> Result<HashMap<Address, String>, ServiceError> {
@@ -18,10 +20,13 @@ pub async fn get_balances(token_list: &Vec<TokenList>, provider: &DynProvider, n
         balances_mc = balances_mc.add_dynamic(balance_of)
     }
 
+    let t0 = Instant::now();
     let balances_resp = match balances_mc.try_aggregate(false).await {
         Ok(b) => b,
         Err(e) => return Err(ServiceError::BalancesMultiCallError(e.to_string())),
     };
+
+    info!(time = t0.elapsed().as_secs(), "aggregate balances complete");
 
     let mut balances: HashMap<Address, String> = HashMap::new();
     for (i, balance) in balances_resp.iter().enumerate() {

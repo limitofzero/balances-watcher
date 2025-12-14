@@ -1,7 +1,8 @@
 use std::{collections::HashMap, time::Instant };
 
 use alloy::primitives::Address;
-use alloy::transports::http::reqwest;
+use alloy::transports::http::{reqwest, Client};
+use futures::{stream, StreamExt};
 use serde::Deserialize;
 use crate::config::network_config::TokenList;
 use crate::evm::token::Token;
@@ -17,8 +18,21 @@ pub async fn get_tokens_from_list(token_list: &Vec<TokenList>, network: crate::e
 
     let t0 = Instant::now();
 
-    for list in token_list {
-        match fetch_tokens(&list.source).await {
+    let concurrency: usize = 10;
+    let client = reqwest::Client::new();
+
+    let mut stream = stream::iter(token_list.iter().cloned())
+        .map(move |list| {
+            let client = client.clone();
+            async move {
+                let source = list.source.clone();
+                let result = fetch_tokens(&client, &source).await;
+                (source, result)
+            }
+        }).buffer_unordered(concurrency);
+
+    while let Some ((source, response)) = stream.next().await {
+        match response {
             Ok(result) => {
                 for token in result.tokens {
                     let address = token.address.parse::<Address>().unwrap();
@@ -27,7 +41,9 @@ pub async fn get_tokens_from_list(token_list: &Vec<TokenList>, network: crate::e
                     }
                 }
             },
-            Err(e) => println!("error fetching token list from {e} in {}", list.source)
+            Err(e) => {
+                tracing::warn!("get_tokens_from_list: failed to fetch tokens from list({source}): {:?}", e);
+            }
         }
     }
 
@@ -36,8 +52,7 @@ pub async fn get_tokens_from_list(token_list: &Vec<TokenList>, network: crate::e
     active_tokens
 }
 
-async fn fetch_tokens(token_api_url: &String) -> Result<ApiResponse, reqwest::Error> {
-    let client = reqwest::Client::new();
+async fn fetch_tokens(client: &Client, token_api_url: &String) -> Result<ApiResponse, reqwest::Error> {
     let response = client.get(token_api_url).send().await?.json::<ApiResponse>().await?;
     Ok(response)
 }
