@@ -6,11 +6,11 @@ use crate::evm::networks::EvmNetworks;
 use alloy::{ primitives::Address};
 use alloy::providers::DynProvider;
 use crate::config::network_config::TokenList;
-use crate::evm::{errors::EvmError};
-use crate::services::balances;
-use futures::{SinkExt, Stream, StreamExt};
+use crate::services::{balances, tokens_from_list};
+use futures::{Stream, StreamExt};
 use tokio::time::interval;
 use tokio_stream::wrappers::IntervalStream;
+use crate::evm::token::Token;
 
 #[derive(Serialize)]
 pub struct BalancesResponse {
@@ -21,7 +21,7 @@ struct BalanceContext {
     owner: Address,
     provider: DynProvider,
     network: EvmNetworks,
-    tokens_list: Vec<TokenList>,
+    tokens: HashMap<Address, Token>,
 }
 
 #[derive(Serialize)]
@@ -29,7 +29,10 @@ struct BalanceStreamError {
     error: String,
 }
 
-pub async fn get_balances(Path((network, owner)): Path<(EvmNetworks, Address)>, State(state): State<Arc<AppState>>) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
+pub async fn get_balances(
+    Path((network, owner)): Path<(EvmNetworks, Address)>,
+    State(state): State<Arc<AppState>>
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
     let provider = match state.providers.get(&network) {
         Some(provider) => provider.clone(),
         None => return Err(StatusCode::NOT_FOUND),
@@ -41,10 +44,12 @@ pub async fn get_balances(Path((network, owner)): Path<(EvmNetworks, Address)>, 
         .cloned()
         .unwrap_or_default();
 
+    let tokens = tokens_from_list::get_tokens_from_list(&network_token_list, network).await;
+
     let ctx = Arc::new(BalanceContext {
         provider,
         network,
-        tokens_list: network_token_list,
+        tokens,
         owner,
     });
 
@@ -56,7 +61,7 @@ pub async fn get_balances(Path((network, owner)): Path<(EvmNetworks, Address)>, 
             
             async move {
                 let result = balances::get_balances(
-                    &ctx.tokens_list,
+                    &ctx.tokens,
                     &ctx.provider,
                     ctx.network,
                     ctx.owner

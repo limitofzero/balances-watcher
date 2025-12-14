@@ -7,11 +7,10 @@ use alloy::primitives::Address;
 use alloy::providers::{DynProvider, Provider};
 use tracing::info;
 use crate::evm::erc20::ERC20;
+use crate::evm::token::Token;
 
-pub async fn get_balances(token_list: &Vec<TokenList>, provider: &DynProvider, network: networks::EvmNetworks, owner: Address) -> Result<HashMap<Address, String>, ServiceError> {
-    let active_tokens = tokens_from_list::get_tokens_from_list(token_list, network).await;
-
-    let tokens: Vec<Address> = active_tokens.keys().cloned().collect();
+pub async fn get_balances(tokens: &HashMap<Address, Token>, provider: &DynProvider, network: networks::EvmNetworks, owner: Address) -> Result<HashMap<Address, String>, ServiceError> {
+    let tokens: Vec<Address> = tokens.keys().cloned().collect();
 
     let mut balances_mc  = provider.multicall().dynamic();
     for address in &tokens {
