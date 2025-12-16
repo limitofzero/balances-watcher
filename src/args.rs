@@ -13,11 +13,14 @@ pub struct Args {
     #[arg(long, env="ETH_RPC", default_value="")]
     pub eth_rpc: String,
 
+    #[arg(long, env="ETH_WC_RPC", default_value="")]
+    pub eth_ws_rpc: String,
+
     #[arg(long, env="TOKEN_LIST_PATH", default_value=DEFAULT_TOKEN_LIST_PATH)]
     pub token_list_path: String,
 
     #[arg(long, env="MULTICALL_ADDRESS", default_value="")]
-    pub multicall_address: String
+    pub multicall_address: String,
 }
 
 impl Args {

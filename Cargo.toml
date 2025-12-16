@@ -13,7 +13,7 @@ serde_json = "1.0"
 futures = "0.3"
 tokio-stream = "0.1"
 clap = { version = "4.5.51", features = ["env", "derive"] }
-alloy = "1.1.0"
+alloy = { version = "1.1.0", features = ["provider-ws"] }
 thiserror = "2.0.17"
 tracing = "0.1.43"
 tracing-subscriber = { version = "0.3.22", features = ["json", "env-filter"] }

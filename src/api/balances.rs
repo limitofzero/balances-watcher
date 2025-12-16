@@ -51,7 +51,7 @@ pub async fn get_balances(
         owner,
     });
 
-    let interval = interval(Duration::from_secs(8));
+    let interval = interval(Duration::from_secs(60));
 
     let stream = IntervalStream::new(interval)
         .then(move |_| {

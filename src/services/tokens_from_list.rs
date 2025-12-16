@@ -6,7 +6,7 @@ use futures::{stream, StreamExt};
 use serde::Deserialize;
 use crate::config::network_config::TokenList;
 use crate::evm::token::Token;
-use tracing::{ info};
+use tracing::{info};
 
 #[derive(Debug, Deserialize)]
 pub struct ApiResponse {

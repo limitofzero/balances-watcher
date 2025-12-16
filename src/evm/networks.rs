@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+use alloy::primitives::private::derive_more::Display;
 use serde::{Deserialize, Deserializer};
 use crate::evm::errors::EvmError;
 
@@ -23,6 +25,12 @@ impl TryFrom<u64> for EvmNetworks {
             42161 => Ok(EvmNetworks::Arbitrum),
             _ => Err(EvmError::UnsupportedNetwork(id)),
         }
+    }
+}
+
+impl Display for EvmNetworks {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.chain_id())
     }
 }
 
