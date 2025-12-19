@@ -19,7 +19,7 @@ pub async fn get_tokens_from_list(token_list: &Vec<TokenList>, network: crate::e
     let t0 = Instant::now();
 
     let concurrency: usize = 10;
-    let client = reqwest::Client::new();
+    let client = Client::new();
 
     let mut stream = stream::iter(token_list.iter().cloned())
         .map(move |list| {

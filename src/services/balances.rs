@@ -1,11 +1,8 @@
-use crate::config::network_config::TokenList;
-use crate::evm::networks;
-use crate::services::{tokens_from_list, errors::ServiceError};
+use crate::services::{errors::ServiceError};
 use std::collections::HashMap;
 use std::time::Instant;
 use alloy::primitives::Address;
 use alloy::providers::{DynProvider, Provider};
-use tracing::info;
 use crate::evm::erc20::ERC20;
 use crate::evm::token::Token;
 
@@ -25,14 +22,14 @@ pub async fn get_balances(tokens: &HashMap<Address, Token>, provider: &DynProvid
         Err(e) => return Err(ServiceError::BalancesMultiCallError(e.to_string())),
     };
 
-    info!(time = t0.elapsed().as_secs(), "aggregate balances complete");
+    tracing::info!(time = t0.elapsed().as_secs(), "aggregate balances complete");
 
     let mut balances: HashMap<Address, String> = HashMap::new();
     for (i, balance) in balances_resp.iter().enumerate() {
         match balance {
             Ok(correct_balance) => { balances.insert(tokens[i].clone(), correct_balance.to_string()); }
             Err(_) => {
-                println!("Error getting balance for token {}", tokens[i]);
+                tracing::warn!("Error getting balance for token {}", tokens[i]);
             }
         }
     }

@@ -5,6 +5,7 @@ use crate::app_state::AppState;
 use crate::evm::networks::EvmNetworks;
 use alloy::{ primitives::Address};
 use alloy::providers::DynProvider;
+use alloy::pubsub::ConnectionHandle;
 use crate::config::network_config::TokenList;
 use crate::services::{balances, tokens_from_list};
 use futures::{Stream, StreamExt};
@@ -37,6 +38,13 @@ pub async fn get_balances(
         None => return Err(StatusCode::NOT_FOUND),
     };
 
+    let ws_provider = match state.ws_providers.get(&network) {
+        None => {
+            return Err(StatusCode::NOT_FOUND);
+        }
+        Some(_) => provider.clone(),
+    };
+
     let network_token_list: Vec<TokenList> = state
         .network_config
         .token_list(network)
@@ -53,7 +61,7 @@ pub async fn get_balances(
 
     let interval = interval(Duration::from_secs(60));
 
-    let stream = IntervalStream::new(interval)
+    let multicall_interval_handle = IntervalStream::new(interval)
         .then(move |_| {
             let ctx = Arc::clone(&ctx);
             
@@ -83,5 +91,5 @@ pub async fn get_balances(
             }
         });
 
-    Ok(Sse::new(stream))
+    Ok(Sse::new(multicall_interval_handle))
 }
