@@ -16,6 +16,12 @@ pub struct Args {
     #[arg(long, env="ETH_WC_RPC", default_value="")]
     pub eth_ws_rpc: String,
 
+    #[arg(long, env="SEPOLIA_RPC", default_value="")]
+    pub sepolia_rpc: String,
+
+    #[arg(long, env="SEPOLIA_WC_RPC", default_value="")]
+    pub sepolia_ws_rpc: String,
+
     #[arg(long, env="TOKEN_LIST_PATH", default_value=DEFAULT_TOKEN_LIST_PATH)]
     pub token_list_path: String,
 

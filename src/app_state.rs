@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use alloy::network::Ethereum;
 use alloy::providers::{DynProvider, Provider, ProviderBuilder, WsConnect};
-use alloy::pubsub::{ConnectionHandle, PubSubConnect};
 use crate::config::network_config::NetworkConfig;
 use crate::evm::networks::EvmNetworks;
 
@@ -10,7 +9,7 @@ use crate::evm::networks::EvmNetworks;
 pub struct AppState {
     pub network_config: Arc<NetworkConfig>,
     pub providers: Arc<HashMap<EvmNetworks, DynProvider<Ethereum>>>,
-    pub ws_providers: Arc<HashMap<EvmNetworks, ConnectionHandle>>
+    pub ws_providers: Arc<HashMap<EvmNetworks, DynProvider>>
 }
 
 impl AppState {
@@ -45,21 +44,23 @@ impl AppState {
         providers
     }
 
-    async fn build_ws_rpc_providers(ws_rpcs: &HashMap<EvmNetworks, String>) -> HashMap<EvmNetworks, ConnectionHandle> {
-        let mut providers: HashMap<EvmNetworks, ConnectionHandle> = HashMap::new();
+    async fn build_ws_rpc_providers(ws_rpcs: &HashMap<EvmNetworks, String>) -> HashMap<EvmNetworks, DynProvider> {
+        let mut providers: HashMap<EvmNetworks, DynProvider> = HashMap::new();
 
         for (network, ws_rpc) in ws_rpcs {
             if ws_rpc.is_empty() { continue; }
 
-            match WsConnect::new(ws_rpc).connect().await {
+            let wc = WsConnect::new(ws_rpc);
+            match ProviderBuilder::new().connect_ws(wc).await {
                 Ok(provider) => {
-                    providers.insert(network.clone(), provider);
-                    tracing::info!("WS provider for network {} is registered", network);
+                    providers.insert(network.clone(), provider.erased());
                 },
                 Err(e) => {
-                    tracing::info!(error = e.to_string().as_str(), "WS provider failed to connect");
+                    tracing::error!("Error to init ws connection {:?}", e);
                 }
             }
+
+            tracing::info!("WS provider for network {} is registered", network);
         }
 
         providers

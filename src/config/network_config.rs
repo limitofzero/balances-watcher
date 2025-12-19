@@ -43,6 +43,14 @@ impl NetworkConfig {
             ws_rpcs.insert(EvmNetworks::Eth, args.eth_ws_rpc.clone());
         }
 
+        if !args.sepolia_rpc.is_empty() {
+            rpcs.insert(EvmNetworks::Sepolia, args.sepolia_rpc.clone());
+        }
+
+        if !args.sepolia_ws_rpc.is_empty() {
+            ws_rpcs.insert(EvmNetworks::Sepolia, args.sepolia_ws_rpc.clone());
+        }
+
         let token_list_config: TokenListConfig = {
           let path = args.token_list_path.clone();
           let content = fs::read_to_string(path).expect("Unable to read token list file");

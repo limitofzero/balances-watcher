@@ -43,5 +43,12 @@
       "priority": 5,
       "source": "https://raw.githubusercontent.com/balancer/tokenlists/refs/heads/main/generated/balancer.tokenlist.json"
     }
+  ],
+  "11155111": [
+    {
+      "priority": 1,
+      "enabledByDefault": true,
+      "source": "https://files.cow.fi/token-lists/CowSwapSepolia.json"
+    }
   ]
 }

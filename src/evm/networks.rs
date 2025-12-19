@@ -8,6 +8,7 @@ use crate::evm::errors::EvmError;
 pub enum EvmNetworks {
     Eth = 1,
     Arbitrum = 42161,
+    Sepolia = 11155111,
 }
 
 impl EvmNetworks {
@@ -23,6 +24,7 @@ impl TryFrom<u64> for EvmNetworks {
         match id {
             1 => Ok(EvmNetworks::Eth),
             42161 => Ok(EvmNetworks::Arbitrum),
+            11155111 => Ok(EvmNetworks::Sepolia),
             _ => Err(EvmError::UnsupportedNetwork(id)),
         }
     }
