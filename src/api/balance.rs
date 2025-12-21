@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, State};
 use axum::Json;
 use serde::Serialize;
 use crate::app_state::AppState;

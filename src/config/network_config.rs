@@ -70,4 +70,8 @@ impl NetworkConfig {
     pub fn token_list(&self, network: EvmNetworks) -> Option<&Vec<TokenList>> {
         self.token_list.get(&network)
     }
+    
+    pub fn multicall_address(&self) -> &Address {
+        &self.multicall_address
+    }
 }

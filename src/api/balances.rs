@@ -1,18 +1,20 @@
-use std::{convert::Infallible, collections::HashMap, time::Duration, sync::Arc};
-use axum::{response::sse::{Sse, Event}, extract::{Path, State}, http::StatusCode};
+use std::{collections::HashMap, convert::Infallible, sync::Arc, time::Duration};
+use axum::{extract::{Path, State}, http::StatusCode, response::sse::{Event, Sse}, Json};
 use serde::Serialize;
 use crate::app_state::AppState;
 use crate::evm::networks::EvmNetworks;
-use alloy::{ primitives::Address};
+use alloy::primitives::Address;
 use alloy::primitives::U256;
 use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::{Filter, Log, Topic};
 use alloy::sol_types::SolEvent;
+use axum::response::{IntoResponse, Response};
 use crate::config::network_config::TokenList;
 use crate::services::{balances, tokens_from_list};
 use futures::{Stream, StreamExt};
 use tokio::time::interval;
 use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
+use crate::api::errors::StreamError;
 use crate::evm::erc20::ERC20;
 use crate::evm::token::Token;
 
@@ -26,11 +28,7 @@ struct BalanceContext {
     provider: DynProvider,
     tokens: HashMap<Address, Token>,
     network: EvmNetworks,
-}
-
-#[derive(Serialize)]
-struct BalanceStreamError {
-    error: String,
+    multicall3: Address,
 }
 
 #[derive(Serialize)]
@@ -42,18 +40,32 @@ struct TokenBalance {
 pub async fn get_balances(
     Path((network, owner)): Path<(EvmNetworks, Address)>,
     State(state): State<Arc<AppState>>
-) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StreamError> {
     let provider = match state.providers.get(&network) {
         Some(provider) => provider.clone(),
-        None => return Err(StatusCode::NOT_FOUND),
+        None => return Err(StreamError{
+            code: 404,
+            message: format!("No provider for network {}", network)
+        }),
     };
 
     let ws_provider = match state.ws_providers.get(&network) {
         None => {
-            return Err(StatusCode::NOT_FOUND);
+            return Err(StreamError{
+                code: 404,
+                message: format!("No ws provider for network {}", network)
+            });
         }
         Some(ws_provider) => ws_provider.clone(),
     };
+
+    let multicall3 = state.network_config.multicall_address().clone();
+    if multicall3.is_empty() {
+        return Err(StreamError{
+            code: 404,
+            message: format!("No multicall3 for network {}", network)
+        });
+    }
 
     let network_token_list: Vec<TokenList> = state
         .network_config
@@ -63,11 +75,13 @@ pub async fn get_balances(
 
     let tokens = tokens_from_list::get_tokens_from_list(&network_token_list, network).await;
 
+
     let ctx = Arc::new(BalanceContext {
         provider,
         tokens,
         owner,
         network,
+        multicall3,
     });
 
     let interval = interval(Duration::from_secs(60));
@@ -79,12 +93,18 @@ pub async fn get_balances(
     let mut from_subscribe = ws_provider
         .subscribe_logs(&from_filter)
         .await
-        .or_else(|_| Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+        .or_else(|_| Err(StreamError{
+            code: 500,
+            message: format!("Failed to subscribe to transfer logs per network: {}", network)
+        }))?;
 
     let mut to_subscribe = ws_provider
         .subscribe_logs(&to_filter)
         .await
-        .or_else(|_| Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+        .or_else(|_| Err(StreamError{
+            code: 500,
+            message: format!("Failed to subscribe to transfer logs per network: {}", network)
+        }))?;
 
     let ctx_for_from = Arc::clone(&ctx);
     let from_stream = from_subscribe
@@ -113,7 +133,8 @@ pub async fn get_balances(
                     &ctx.tokens,
                     &ctx.provider,
                     ctx.owner,
-                    ctx.network
+                    ctx.network,
+                    multicall3,
                 ).await;
 
                 let event = match result {
@@ -126,7 +147,10 @@ pub async fn get_balances(
                     Err(e) =>
                         Event::default()
                             .event("error")
-                            .json_data(BalanceStreamError { error: e.to_string() })
+                            .json_data(StreamError {
+                                code: 500,
+                                message: format!("Failed to get balances for {} per network {}", ctx.owner, ctx.network)
+                            })
                             .unwrap()
 
                 };
