@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
-use alloy::primitives::private::derive_more::Display;
+use std::str::FromStr;
+use alloy::primitives::{address, Address};
 use serde::{Deserialize, Deserializer};
 use crate::evm::errors::EvmError;
 
@@ -11,9 +12,15 @@ pub enum EvmNetworks {
     Sepolia = 11155111,
 }
 
+const NATIVE_ADDRESS: Address = address!("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE");
+
 impl EvmNetworks {
     pub fn chain_id(self) -> u64 {
         self as u64
+    }
+
+    pub fn native_token_address(self) -> Address {
+        NATIVE_ADDRESS
     }
 }
 

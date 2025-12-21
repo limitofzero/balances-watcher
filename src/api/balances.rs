@@ -25,6 +25,7 @@ struct BalanceContext {
     owner: Address,
     provider: DynProvider,
     tokens: HashMap<Address, Token>,
+    network: EvmNetworks,
 }
 
 #[derive(Serialize)]
@@ -66,6 +67,7 @@ pub async fn get_balances(
         provider,
         tokens,
         owner,
+        network,
     });
 
     let interval = interval(Duration::from_secs(60));
@@ -110,7 +112,8 @@ pub async fn get_balances(
                 let result = balances::get_balances(
                     &ctx.tokens,
                     &ctx.provider,
-                    ctx.owner
+                    ctx.owner,
+                    ctx.network
                 ).await;
 
                 let event = match result {
