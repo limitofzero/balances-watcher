@@ -16,23 +16,24 @@ RUN cargo build --release && rm -rf src
 
 COPY src ./src
 
-RUN touch src/main.rs && cargo build --release --offline
+RUN cargo build --release \
+  && strip target/release/token-balances-updater || true
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
-    && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -u 1000 appuser
+RUN useradd -m -u 1000 -s /usr/sbin/nologin appuser
 
 WORKDIR /app
 
 COPY --from=builder /app/target/release/token-balances-updater /app/token-balances-updater
 COPY --from=builder /app/configs ./configs
 
-RUN chown appuser:appuser /app/token-balances-updater
+RUN chown -R appuser:appuser /app
 
 USER appuser
 
