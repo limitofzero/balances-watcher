@@ -1,4 +1,4 @@
-# Token Balances Updater
+# Token Balances Watcher
 
 Real-time ERC20 token balance tracking service with SSE (Server-Sent Events) support.
 

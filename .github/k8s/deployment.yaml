@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: token-balances-watcher
+  labels:
+    app: token-balances-watcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: token-balances-watcher
+  template:
+    metadata:
+      labels:
+        app: token-balances-watcher
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/OWNER/REPO:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: RUST_LOG
+              value: info

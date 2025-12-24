@@ -30,7 +30,7 @@ RUN useradd -m -u 1000 -s /usr/sbin/nologin appuser
 WORKDIR /app
 
 COPY --from=builder /app/target/release/token-balances-updater /app/token-balances-updater
-COPY --from=builder /app/configs ./configs
+COPY configs ./configs
 
 RUN chown -R appuser:appuser /app
 
