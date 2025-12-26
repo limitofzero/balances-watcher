@@ -25,6 +25,17 @@ jobs:
           RUST_LOG: ${{ vars.RUST_LOG }}
           HTTP_BIND: ${{ vars.HTTP_BIND }}
 
+      - name: Debug SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          debug: true
+          script: |
+            echo "SSH connection successful"
+            whoami
+
       - name: Copy manifests to server
         uses: appleboy/scp-action@v0.1.7
         with:
