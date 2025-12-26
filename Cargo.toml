@@ -1,5 +1,5 @@
 [package]
-name = "token-balances-updater"
+name = "balances-watcher"
 version = "0.1.0"
 edition = "2021"
 
