@@ -36,6 +36,11 @@ jobs:
             echo "SSH connection successful"
             whoami
 
+      - name: Check secrets exist
+        run: |
+          if [ -n "${{ secrets.SERVER_HOST }}" ]; then echo "SERVER_HOST is set"; else echo "SERVER_HOST is EMPTY"; fi
+          if [ -n "${{ secrets.SERVER_USER }}" ]; then echo "SERVER_USER is set"; else echo "SERVER_USER is EMPTY"; fi
+
       - name: Copy manifests to server
         uses: appleboy/scp-action@v0.1.7
         with:
