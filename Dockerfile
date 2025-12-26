@@ -16,7 +16,7 @@ RUN cargo build --release && rm -rf src
 COPY src ./src
 
 RUN cargo build --release \
-  && strip target/release/token-balances-updater || true
+  && strip target/release/balances-watcher || true
 
 FROM debian:bookworm-slim
 
@@ -29,7 +29,7 @@ RUN useradd -m -u 1000 -s /usr/sbin/nologin appuser
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/token-balances-updater /app/token-balances-updater
+COPY --from=builder /app/target/release/balances-watcher /app/balances-watcher
 COPY configs ./configs
 
 RUN chown -R appuser:appuser /app
@@ -38,4 +38,4 @@ USER appuser
 
 EXPOSE 8080
 
-CMD ["./token-balances-updater"]
+CMD ["./balances-watcher"]

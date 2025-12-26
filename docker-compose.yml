@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  token-balances-updater:
+  balances-watcher:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: token-balances-updater
+    container_name: balances-watcher
     ports:
       - "4000:8080"
     env_file:
