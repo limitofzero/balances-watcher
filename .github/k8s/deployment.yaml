@@ -16,9 +16,15 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/OWNER/REPO:latest
+          image: ghcr.io/limitofzero/balances-watcher:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: token-balances-watcher-secrets
           env:
-            - name: RUST_LOG
-              value: info
+        - name: RUST_LOG
+          value: "${RUST_LOG:-info}"
+        - name: HTTP_BIND
+          value: "${HTTP_BIND:-0.0.0.0:8080}"
