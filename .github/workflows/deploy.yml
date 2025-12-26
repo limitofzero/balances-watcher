@@ -20,28 +20,12 @@ jobs:
 
       - name: Substitute env vars in manifests
         run: |
-          envsubst < .github/k8s/deployment.yaml > /tmp/deployment.yaml
-          envsubst < .github/k8s/service.yaml > /tmp/service.yaml
+          mkdir -p ./k8s-output
+          envsubst < .github/k8s/deployment.yaml > ./k8s-output/deployment.yaml
+          envsubst < .github/k8s/service.yaml > ./k8s-output/service.yaml
         env:
           RUST_LOG: ${{ vars.RUST_LOG }}
           HTTP_BIND: ${{ vars.HTTP_BIND }}
-
-
-      - name: Check secrets exist
-        run: |
-          if [ -n "${{ secrets.SERVER_HOST }}" ]; then echo "SERVER_HOST is set"; else echo "SERVER_HOST is EMPTY"; fi
-          if [ -n "${{ secrets.SERVER_USER }}" ]; then echo "SERVER_USER is set"; else echo "SERVER_USER is EMPTY"; fi
-
-      - name: Debug SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          debug: true
-          script: |
-            echo "SSH connection successful"
-            whoami
 
       - name: Copy manifests to server
         uses: appleboy/scp-action@v0.1.7
@@ -49,7 +33,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "/tmp/deployment.yaml,/tmp/service.yaml"
+          source: "k8s-output/*"
           target: "/tmp/k8s-manifests"
           strip_components: 1
 
