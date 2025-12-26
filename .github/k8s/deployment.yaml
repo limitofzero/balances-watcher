@@ -24,7 +24,7 @@ spec:
             - secretRef:
                 name: token-balances-watcher-secrets
           env:
-        - name: RUST_LOG
-          value: "${RUST_LOG:-info}"
-        - name: HTTP_BIND
-          value: "${HTTP_BIND:-0.0.0.0:8080}"
+            - name: RUST_LOG
+              value: "${RUST_LOG:-info}"
+            - name: HTTP_BIND
+              value: "${HTTP_BIND}"

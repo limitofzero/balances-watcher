@@ -25,6 +25,12 @@ jobs:
           RUST_LOG: ${{ vars.RUST_LOG }}
           HTTP_BIND: ${{ vars.HTTP_BIND }}
 
+
+      - name: Check secrets exist
+        run: |
+          if [ -n "${{ secrets.SERVER_HOST }}" ]; then echo "SERVER_HOST is set"; else echo "SERVER_HOST is EMPTY"; fi
+          if [ -n "${{ secrets.SERVER_USER }}" ]; then echo "SERVER_USER is set"; else echo "SERVER_USER is EMPTY"; fi
+
       - name: Debug SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -35,11 +41,6 @@ jobs:
           script: |
             echo "SSH connection successful"
             whoami
-
-      - name: Check secrets exist
-        run: |
-          if [ -n "${{ secrets.SERVER_HOST }}" ]; then echo "SERVER_HOST is set"; else echo "SERVER_HOST is EMPTY"; fi
-          if [ -n "${{ secrets.SERVER_USER }}" ]; then echo "SERVER_USER is set"; else echo "SERVER_USER is EMPTY"; fi
 
       - name: Copy manifests to server
         uses: appleboy/scp-action@v0.1.7
