@@ -25,6 +25,6 @@ spec:
                 name: balances-watcher-secrets
           env:
             - name: RUST_LOG
-              value: "${RUST_LOG:-info}"
+              value: "${RUST_LOG}"
             - name: HTTP_BIND
               value: "${HTTP_BIND}"
