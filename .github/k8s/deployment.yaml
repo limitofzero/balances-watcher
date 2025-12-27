@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: token-balances-watcher
+  name: balances-watcher
   labels:
-    app: token-balances-watcher
+    app: balances-watcher
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: token-balances-watcher
+      app: balances-watcher
   template:
     metadata:
       labels:
-        app: token-balances-watcher
+        app: balances-watcher
     spec:
       containers:
         - name: app
@@ -22,7 +22,7 @@ spec:
             - containerPort: 8080
           envFrom:
             - secretRef:
-                name: token-balances-watcher-secrets
+                name: balances-watcher-secrets
           env:
             - name: RUST_LOG
               value: "${RUST_LOG:-info}"

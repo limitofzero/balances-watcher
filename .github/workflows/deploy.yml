@@ -47,5 +47,5 @@ jobs:
             export KUBECONFIG=/home/limitofzero/.kube/config
             kubectl apply -f /tmp/k8s-manifests/deployment.yaml
             kubectl apply -f /tmp/k8s-manifests/service.yaml
-            kubectl rollout restart deployment/token-balances-watcher
-            kubectl rollout status deployment/token-balances-watcher
+            kubectl rollout restart deployment/balances-watcher
+            kubectl rollout status deployment/balances-watcher

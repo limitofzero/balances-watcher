@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: token-balances-watcher
+  name: balances-watcher
 spec:
   selector:
-    app: token-balances-watcher
+    app: balances-watcher
   ports:
     - name: http
       port: 80
