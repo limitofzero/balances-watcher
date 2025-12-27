@@ -23,6 +23,7 @@ jobs:
           mkdir -p ./k8s-output
           envsubst < .github/k8s/deployment.yaml > ./k8s-output/deployment.yaml
           envsubst < .github/k8s/service.yaml > ./k8s-output/service.yaml
+          envsubst < .github/k8s/ingress.yaml > ./k8s-output/ingress.yaml
         env:
           RUST_LOG: ${{ vars.RUST_LOG }}
           HTTP_BIND: ${{ vars.HTTP_BIND }}
@@ -47,5 +48,6 @@ jobs:
             export KUBECONFIG=/home/limitofzero/.kube/config
             kubectl apply -f /tmp/k8s-manifests/deployment.yaml
             kubectl apply -f /tmp/k8s-manifests/service.yaml
+            kubectl apply -f /tmp/k8s-manifests/ingress.yaml 
             kubectl rollout restart deployment/balances-watcher
             kubectl rollout status deployment/balances-watcher
