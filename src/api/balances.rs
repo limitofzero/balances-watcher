@@ -1,5 +1,5 @@
 use std::{collections::HashMap, convert::Infallible, sync::Arc, time::Duration};
-use axum::{extract::{Path, State}, http::StatusCode, response::sse::{Event, Sse}, Json};
+use axum::{extract::{Path, State},  response::sse::{Event, Sse}};
 use serde::Serialize;
 use crate::app_state::AppState;
 use crate::evm::networks::EvmNetworks;
@@ -8,9 +8,8 @@ use alloy::primitives::U256;
 use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::{Filter, Log, Topic};
 use alloy::sol_types::SolEvent;
-use axum::response::{IntoResponse, Response};
 use crate::config::network_config::TokenList;
-use crate::services::{balances, tokens_from_list};
+use crate::services::{balances, tokens_from_list, subscription_manager};
 use futures::{Stream, StreamExt};
 use tokio::time::interval;
 use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
@@ -74,6 +73,16 @@ pub async fn get_balances(
         .unwrap_or_default();
 
     let tokens = tokens_from_list::get_tokens_from_list(&network_token_list, network).await;
+
+    let sub_key = subscription_manager::SubscriptionKey {
+        owner,
+        network,
+    };
+
+    let (rx, is_first, subscription) = state.sub_manager
+        .subscribe(sub_key.clone())
+        .await
+        .map_err(|e| StreamError{ code: 500, message: e.to_string() })?;
 
 
     let ctx = Arc::new(BalanceContext {

@@ -4,12 +4,14 @@ use alloy::network::Ethereum;
 use alloy::providers::{DynProvider, Provider, ProviderBuilder, WsConnect};
 use crate::config::network_config::NetworkConfig;
 use crate::evm::networks::EvmNetworks;
+use crate::services::subscription_manager::SubscriptionManager;
 
 #[derive(Clone)]
 pub struct AppState {
     pub network_config: Arc<NetworkConfig>,
     pub providers: Arc<HashMap<EvmNetworks, DynProvider<Ethereum>>>,
-    pub ws_providers: Arc<HashMap<EvmNetworks, DynProvider>>
+    pub ws_providers: Arc<HashMap<EvmNetworks, DynProvider>>,
+    pub sub_manager: Arc<SubscriptionManager>
 }
 
 impl AppState {
@@ -20,7 +22,8 @@ impl AppState {
         Arc::new(Self {
             network_config: Arc::new(network_config),
             providers: Arc::new(providers),
-            ws_providers: Arc::new(ws_providers)
+            ws_providers: Arc::new(ws_providers),
+            sub_manager: Arc::new(SubscriptionManager::new()),
         })
     }
 

@@ -13,7 +13,7 @@ pub async fn get_balances(tokens: &HashMap<Address, Token>, provider: &DynProvid
     let mut erc20_tokens: Vec<Address> = tokens.keys().cloned().filter(|a| *a != native_address).collect();
     erc20_tokens.sort();
 
-    let mut multicall3 = Multicall3::new(multicall3_add, provider);
+    let multicall3 = Multicall3::new(multicall3_add, provider);
     // one for erc balances
     let mut calls: Vec<Multicall3::Call3> = Vec::with_capacity(erc20_tokens.len() + 1);
 
