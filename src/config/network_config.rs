@@ -23,8 +23,11 @@ pub  struct NetworkConfig {
     pub rpcs: HashMap<EvmNetworks, String>,
     pub ws_rpcs: HashMap<EvmNetworks, String>,
     pub multicall_address: Address,
+    pub snapshot_interval: u64,
     token_list: HashMap<EvmNetworks, Vec<TokenList>>,
 }
+
+const DEFAULT_SNAPSHOT_INTERVAL: u64 = 60;
 
 impl NetworkConfig {
     pub fn init(args: &Args) -> Self {
@@ -57,10 +60,21 @@ impl NetworkConfig {
           serde_json::from_str(content.as_str()).expect("Unable to parse token list file")
         };
 
+        let multicall_address = Address::from_str(&args.multicall_address)
+            .inspect_err(|err| {
+                tracing::error!("Failed to parse multicall_address {}", err);
+            })
+            .unwrap_or(Address::ZERO);
 
-        let multicall_address = Address::from_str(&args.multicall_address).unwrap_or(Address::ZERO);
+        let snapshot_interval =  args.snapshot_interval
+            .to_string()
+            .parse::<u64>()
+            .inspect_err(|err| {
+                tracing::warn!("Invalid snapshot interval value: {}", err);
+            })
+            .unwrap_or(DEFAULT_SNAPSHOT_INTERVAL);
 
-        Self { rpcs, token_list: token_list_config, multicall_address, ws_rpcs }
+        Self { rpcs, token_list: token_list_config, multicall_address, ws_rpcs, snapshot_interval, }
     }
 
     pub fn rpc_url(&self, network: EvmNetworks) -> Option<&String> {

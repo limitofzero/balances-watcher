@@ -11,7 +11,7 @@ pub struct AppState {
     pub network_config: Arc<NetworkConfig>,
     pub providers: Arc<HashMap<EvmNetworks, DynProvider<Ethereum>>>,
     pub ws_providers: Arc<HashMap<EvmNetworks, DynProvider>>,
-    pub sub_manager: Arc<SubscriptionManager>
+    pub sub_manager: Arc<SubscriptionManager>,
 }
 
 impl AppState {
