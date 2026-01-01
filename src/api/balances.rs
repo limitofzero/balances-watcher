@@ -326,19 +326,22 @@ async fn update_snapshot_via_multicall(ctx: Arc<BalanceContext>, sub: &subscript
 
 
 async fn parse_transfer_and_get_balance(ctx: Arc<BalanceContext>, log: &Log) -> Option<TokenBalance> {
-    let log: Log<ERC20::Transfer> = match log.log_decode() {
+    let block_number = log.block_number?;
+    
+    let decoded_log: Log<ERC20::Transfer> = match log.log_decode() {
         Ok(log) => log,
         Err(_) => return None,
     };
 
-    let erc20 = ERC20::new(log.address(), &ctx.provider);
-    match erc20.balanceOf(ctx.owner).call().await {
+    let erc20 = ERC20::new(decoded_log.address(), &ctx.provider);
+
+    match erc20.balanceOf(ctx.owner).block(block_number.into()).call().await {
         Ok(balance) => Some(TokenBalance {
-            address: log.address(),
+            address: decoded_log.address(),
             balance,
         }),
         Err(e) => {
-            tracing::error!("failed to get balance for {}: {:?}", log.address(), e);
+            tracing::error!("failed to get balance for {} at block {}: {:?}", decoded_log.address(), block_number, e);
             None
         },
     }

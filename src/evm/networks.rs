@@ -1,5 +1,4 @@
 use std::fmt::{Display, Formatter};
-use std::str::FromStr;
 use alloy::primitives::{address, Address};
 use serde::{Deserialize, Deserializer};
 use crate::evm::errors::EvmError;
