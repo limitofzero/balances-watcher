@@ -6,7 +6,6 @@ use futures::{stream, StreamExt};
 use serde::Deserialize;
 use crate::config::network_config::TokenList;
 use crate::evm::token::Token;
-use tracing::{info};
 
 #[derive(Debug, Deserialize)]
 pub struct ApiResponse {
@@ -47,7 +46,7 @@ pub async fn get_tokens_from_list(token_list: &Vec<TokenList>, network: crate::e
         }
     }
 
-    info!(time = t0.elapsed().as_millis(), "finished fetching tokens");
+    tracing::info!(time = t0.elapsed().as_millis(), "finished fetching tokens");
     
     active_tokens
 }

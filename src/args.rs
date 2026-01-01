@@ -27,6 +27,9 @@ pub struct Args {
 
     #[arg(long, env="MULTICALL_ADDRESS", default_value="")]
     pub multicall_address: String,
+
+    #[arg(long, env="SNAPSHOT_INTERVAL", default_value="60")]
+    pub snapshot_interval: String,
 }
 
 impl Args {

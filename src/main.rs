@@ -9,7 +9,6 @@ mod services;
 mod infra;
 mod tracing;
 
-use std::sync::Arc;
 use std::net::SocketAddr;
 use crate::args::Args;
 use config::network_config::{NetworkConfig};
