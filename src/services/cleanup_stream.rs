@@ -1,9 +1,9 @@
+use crate::domain::SubscriptionKey;
+use crate::services::subscription_manager::SubscriptionManager;
+use futures::Stream;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use futures::Stream;
-use crate::services::subscription_manager::SubscriptionManager;
-use crate::domain::SubscriptionKey;
 
 pub struct CleanupStream<S> {
     inner: Pin<Box<S>>,

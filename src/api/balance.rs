@@ -1,24 +1,31 @@
-use std::sync::Arc;
+use crate::app_state::AppState;
+use crate::domain::{EvmError, EvmNetworks};
+use crate::evm::erc20::ERC20;
+use alloy::primitives::Address;
+use alloy::primitives::U256;
 use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use axum::Json;
 use serde::Serialize;
-use crate::app_state::AppState;
-use alloy::{primitives::Address};
-use alloy::primitives::U256;
-use axum::http::StatusCode;
-use crate::domain::{EvmNetworks, EvmError};
-use crate::evm::erc20::ERC20;
+use std::sync::Arc;
 
 #[derive(Serialize)]
 pub struct BalanceResponse {
     pub balance: String,
 }
 
-
-pub async fn get_token_balance(Path((chain, owner, token)): Path<(EvmNetworks, Address, Address)>, State(state): State<Arc<AppState>>) -> Result<Json<BalanceResponse>, (StatusCode, String)> {
+pub async fn get_token_balance(
+    Path((chain, owner, token)): Path<(EvmNetworks, Address, Address)>,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<BalanceResponse>, (StatusCode, String)> {
     let provider = match state.providers.get(&chain) {
         Some(provider) => provider,
-        None => return Err((StatusCode::NOT_FOUND, EvmError::UnsupportedNetwork(chain.chain_id()).to_string())),
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                EvmError::UnsupportedNetwork(chain.chain_id()).to_string(),
+            ))
+        }
     };
 
     let erc20 = ERC20::new(token, provider);
@@ -30,5 +37,7 @@ pub async fn get_token_balance(Path((chain, owner, token)): Path<(EvmNetworks, A
         }
     };
 
-    Ok(Json(BalanceResponse{ balance: balance.to_string() }))
+    Ok(Json(BalanceResponse {
+        balance: balance.to_string(),
+    }))
 }

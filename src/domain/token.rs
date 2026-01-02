@@ -8,4 +8,3 @@ pub struct Token {
     pub decimals: u8,
     pub chain_id: u64,
 }
-

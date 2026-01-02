@@ -1,4 +1,4 @@
-use alloy::{sol};
+use alloy::sol;
 
 sol! {
    #[sol(rpc)]

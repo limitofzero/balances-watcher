@@ -5,4 +5,3 @@ pub enum EvmError {
     #[error("Network with id {0} is not supported")]
     UnsupportedNetwork(u64),
 }
-

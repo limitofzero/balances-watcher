@@ -1,19 +1,22 @@
-use std::{collections::HashMap, time::Instant };
+use std::{collections::HashMap, time::Instant};
 
+use crate::config::network_config::TokenList;
+use crate::domain::Token;
 use alloy::primitives::Address;
 use alloy::transports::http::{reqwest, Client};
 use futures::{stream, StreamExt};
 use serde::Deserialize;
-use crate::config::network_config::TokenList;
-use crate::domain::Token;
 
 #[derive(Debug, Deserialize)]
 pub struct ApiResponse {
     pub tokens: Vec<Token>,
 }
 
-pub async fn get_tokens_from_list(token_list: &Vec<TokenList>, network: crate::domain::EvmNetworks) -> HashMap<Address, Token> {
-    let mut active_tokens: HashMap<Address, Token>  = HashMap::new();
+pub async fn get_tokens_from_list(
+    token_list: &Vec<TokenList>,
+    network: crate::domain::EvmNetworks,
+) -> HashMap<Address, Token> {
+    let mut active_tokens: HashMap<Address, Token> = HashMap::new();
 
     let t0 = Instant::now();
 
@@ -28,9 +31,10 @@ pub async fn get_tokens_from_list(token_list: &Vec<TokenList>, network: crate::d
                 let result = fetch_tokens(&client, &source).await;
                 (source, result)
             }
-        }).buffer_unordered(concurrency);
+        })
+        .buffer_unordered(concurrency);
 
-    while let Some ((source, response)) = stream.next().await {
+    while let Some((source, response)) = stream.next().await {
         match response {
             Ok(result) => {
                 for token in result.tokens {
@@ -39,19 +43,30 @@ pub async fn get_tokens_from_list(token_list: &Vec<TokenList>, network: crate::d
                         active_tokens.insert(address, token);
                     }
                 }
-            },
+            }
             Err(e) => {
-                tracing::warn!("get_tokens_from_list: failed to fetch tokens from list({source}): {:?}", e);
+                tracing::warn!(
+                    "get_tokens_from_list: failed to fetch tokens from list({source}): {:?}",
+                    e
+                );
             }
         }
     }
 
     tracing::info!(time = t0.elapsed().as_millis(), "finished fetching tokens");
-    
+
     active_tokens
 }
 
-async fn fetch_tokens(client: &Client, token_api_url: &String) -> Result<ApiResponse, reqwest::Error> {
-    let response = client.get(token_api_url).send().await?.json::<ApiResponse>().await?;
+async fn fetch_tokens(
+    client: &Client,
+    token_api_url: &String,
+) -> Result<ApiResponse, reqwest::Error> {
+    let response = client
+        .get(token_api_url)
+        .send()
+        .await?
+        .json::<ApiResponse>()
+        .await?;
     Ok(response)
 }

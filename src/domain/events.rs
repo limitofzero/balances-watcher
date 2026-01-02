@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use crate::domain::EvmNetworks;
 use alloy::primitives::Address;
 use serde::Serialize;
-use crate::domain::EvmNetworks;
+use std::collections::HashMap;
 
 /// Unique key to identify a subscription (owner + network)
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -20,4 +20,3 @@ pub enum BalanceEvent {
     /// Error event
     Error { code: u16, message: String },
 }
-

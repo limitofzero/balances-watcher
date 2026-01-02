@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use serde::Deserialize;
-use crate::domain::EvmNetworks;
 use crate::args::Args;
+use crate::domain::EvmNetworks;
+use alloy::primitives::Address;
+use serde::Deserialize;
+use std::collections::HashMap;
 use std::fs;
 use std::ops::Mul;
 use std::str::FromStr;
-use alloy::primitives::Address;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -19,7 +19,7 @@ pub struct TokenList {
 pub type TokenListConfig = HashMap<EvmNetworks, Vec<TokenList>>;
 
 #[derive(Debug)]
-pub  struct NetworkConfig {
+pub struct NetworkConfig {
     pub rpcs: HashMap<EvmNetworks, String>,
     pub ws_rpcs: HashMap<EvmNetworks, String>,
     pub multicall_address: Address,
@@ -55,9 +55,9 @@ impl NetworkConfig {
         }
 
         let token_list_config: TokenListConfig = {
-          let path = args.token_list_path.clone();
-          let content = fs::read_to_string(path).expect("Unable to read token list file");
-          serde_json::from_str(content.as_str()).expect("Unable to parse token list file")
+            let path = args.token_list_path.clone();
+            let content = fs::read_to_string(path).expect("Unable to read token list file");
+            serde_json::from_str(content.as_str()).expect("Unable to parse token list file")
         };
 
         let multicall_address = Address::from_str(&args.multicall_address)
@@ -66,7 +66,8 @@ impl NetworkConfig {
             })
             .unwrap_or(Address::ZERO);
 
-        let snapshot_interval =  args.snapshot_interval
+        let snapshot_interval = args
+            .snapshot_interval
             .to_string()
             .parse::<u64>()
             .inspect_err(|err| {
@@ -74,7 +75,13 @@ impl NetworkConfig {
             })
             .unwrap_or(DEFAULT_SNAPSHOT_INTERVAL);
 
-        Self { rpcs, token_list: token_list_config, multicall_address, ws_rpcs, snapshot_interval, }
+        Self {
+            rpcs,
+            token_list: token_list_config,
+            multicall_address,
+            ws_rpcs,
+            snapshot_interval,
+        }
     }
 
     pub fn rpc_url(&self, network: EvmNetworks) -> Option<&String> {
@@ -84,7 +91,7 @@ impl NetworkConfig {
     pub fn token_list(&self, network: EvmNetworks) -> Option<&Vec<TokenList>> {
         self.token_list.get(&network)
     }
-    
+
     pub fn multicall_address(&self) -> &Address {
         &self.multicall_address
     }

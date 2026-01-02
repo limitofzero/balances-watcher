@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use alloy::primitives::Address;
-use tokio::sync::{broadcast, RwLock};
 use crate::domain::{BalanceEvent, SubscriptionKey};
 use crate::services::errors::SubscriptionError;
+use alloy::primitives::Address;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::{broadcast, RwLock};
 
 struct SubWithCounter {
     pub clients: u32,
@@ -27,11 +27,17 @@ impl SubscriptionManager {
         }
     }
 
-    pub async fn subscribe(&self, key: SubscriptionKey) -> Result<(broadcast::Receiver<BalanceEvent>, bool, Arc<Subscription>), SubscriptionError> {
+    pub async fn subscribe(
+        &self,
+        key: SubscriptionKey,
+    ) -> Result<(broadcast::Receiver<BalanceEvent>, bool, Arc<Subscription>), SubscriptionError>
+    {
         let mut subs = self.subscriptions.write().await;
 
         if let Some(existing) = subs.get_mut(&key) {
-            existing.clients = existing.clients.checked_add(1)
+            existing.clients = existing
+                .clients
+                .checked_add(1)
                 .ok_or_else(|| SubscriptionError::TooManyClients)?;
             let receiver = existing.subscription.sender.subscribe();
             return Ok((receiver, false, Arc::clone(&existing.subscription)));
@@ -57,7 +63,9 @@ impl SubscriptionManager {
         let mut subs = self.subscriptions.write().await;
 
         if let Some(existing) = subs.get_mut(&key) {
-            existing.clients = existing.clients.checked_sub(1)
+            existing.clients = existing
+                .clients
+                .checked_sub(1)
                 .ok_or_else(|| SubscriptionError::ThereIsNoClients)?;
             if existing.clients == 0 {
                 existing.subscription.cancel_token.cancel();
