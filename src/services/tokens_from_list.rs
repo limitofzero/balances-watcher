@@ -5,14 +5,14 @@ use alloy::transports::http::{reqwest, Client};
 use futures::{stream, StreamExt};
 use serde::Deserialize;
 use crate::config::network_config::TokenList;
-use crate::evm::token::Token;
+use crate::domain::Token;
 
 #[derive(Debug, Deserialize)]
 pub struct ApiResponse {
     pub tokens: Vec<Token>,
 }
 
-pub async fn get_tokens_from_list(token_list: &Vec<TokenList>, network: crate::evm::networks::EvmNetworks) -> HashMap<Address, Token> {
+pub async fn get_tokens_from_list(token_list: &Vec<TokenList>, network: crate::domain::EvmNetworks) -> HashMap<Address, Token> {
     let mut active_tokens: HashMap<Address, Token>  = HashMap::new();
 
     let t0 = Instant::now();

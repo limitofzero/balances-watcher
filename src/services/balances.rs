@@ -5,8 +5,7 @@ use alloy::primitives::{Address, U256};
 use alloy::providers::{DynProvider};
 use alloy::sol_types::{SolCall, SolValue};
 use crate::evm::{erc20::ERC20, multicall3::Multicall3};
-use crate::evm::networks::EvmNetworks;
-use crate::evm::token::Token;
+use crate::domain::{EvmNetworks, Token};
 
 pub async fn get_balances(tokens: &HashMap<Address, Token>, provider: &DynProvider, owner: Address, network: EvmNetworks, multicall3_add: Address) -> Result<HashMap<Address, String>, ServiceError> {
     let native_address = network.native_token_address();

@@ -1,8 +1,8 @@
 use std::{collections::HashMap, convert::Infallible, sync::Arc, time::Duration};
 use axum::{extract::{Path, State},  response::sse::{Event, Sse}};
 use serde::Serialize;
-use crate::app_state::{self, AppState};
-use crate::evm::networks::EvmNetworks;
+use crate::app_state::AppState;
+use crate::domain::{EvmNetworks, Token, BalanceEvent, SubscriptionKey};
 use alloy::{primitives::Address, transports::{RpcError, TransportErrorKind}};
 use alloy::primitives::U256;
 use alloy::providers::{DynProvider, Provider};
@@ -11,10 +11,10 @@ use alloy::sol_types::SolEvent;
 use crate::config::network_config::TokenList;
 use crate::services::{balances, tokens_from_list, subscription_manager, cleanup_stream};
 use futures::{Stream, StreamExt};
-use tokio::time::{interval};
-use tokio_stream::wrappers::{BroadcastStream, IntervalStream, ReceiverStream};
+use tokio::time::interval;
+use tokio_stream::wrappers::BroadcastStream;
 use crate::api::errors::StreamError;
-use crate::evm::{erc20::ERC20, token::Token};
+use crate::evm::erc20::ERC20;
 
 #[derive(Serialize)]
 pub struct BalancesResponse {
@@ -87,7 +87,7 @@ pub async fn get_balances(
 
     let tokens = tokens_from_list::get_tokens_from_list(&network_token_list, network).await;
 
-    let sub_key = subscription_manager::SubscriptionKey {
+    let sub_key = SubscriptionKey {
         owner,
         network,
     };
@@ -125,7 +125,7 @@ pub async fn get_balances(
                     ctx.network,
                 );
 
-                let error_event = subscription_manager::BalanceEvent::Error {
+                let error_event = BalanceEvent::Error {
                     code: 500,
                     message: "Impossible to subscribe to ws erc20 transfer events".to_string()
                 };
@@ -144,12 +144,12 @@ pub async fn get_balances(
         let balance_snapshot = subscription.balances_snapshot.read().await;
 
         let event = if balance_snapshot.is_empty() {
-            subscription_manager::BalanceEvent::Error {
+            BalanceEvent::Error {
                 code: 500,
                 message: format!("Empty snapshot for {network} for {owner}")
             }
         } else {
-            subscription_manager::BalanceEvent::FullSnapshot(balance_snapshot.clone())
+            BalanceEvent::FullSnapshot(balance_snapshot.clone())
         };
 
         let _ = subscription.sender.send(event).inspect_err(|err| {
@@ -196,21 +196,21 @@ pub async fn get_balances(
     Ok(Sse::new(cleanup_stream))
 }
 
-fn balance_event_to_sse(event: subscription_manager::BalanceEvent) -> Result<Event, axum::Error> {
+fn balance_event_to_sse(event: BalanceEvent) -> Result<Event, axum::Error> {
     match event {
-        subscription_manager::BalanceEvent::FullSnapshot(balances_map) => {
+        BalanceEvent::FullSnapshot(balances_map) => {
             Event::default()
                 .event("all_balances")
                 .json_data(BalancesResponse {
                     balances: balances_map,
                 })
         },
-        subscription_manager::BalanceEvent::TokenBalanceUpdated { address, balance } => {
+        BalanceEvent::TokenBalanceUpdated { address, balance } => {
             Event::default()
                 .event("balance_update")
                 .json_data(TokenBalanceSseEvent { address, balance })
         },
-        subscription_manager::BalanceEvent::Error { code, message } => {
+        BalanceEvent::Error { code, message } => {
             Event::default()
                 .event("error")
                 .json_data(ErrorBalanceSseEvent {
@@ -271,13 +271,13 @@ async fn spawn_balances_transfer_updates(ctx: Arc<BalanceContext>, sub: Arc<subs
                             let balance_as_string = balance.balance.to_string();
                             let mut balances_snapshot = sub.balances_snapshot.write().await;
                             balances_snapshot.insert(balance.address.clone(), balance_as_string.clone());
-                            subscription_manager::BalanceEvent::TokenBalanceUpdated {
+                            BalanceEvent::TokenBalanceUpdated {
                                 address: balance.address,
                                 balance: balance_as_string,
                             }
                         },
                         None => {
-                            subscription_manager::BalanceEvent::Error {
+                            BalanceEvent::Error {
                                 code: 500,
                                 message: "Error when transfer event was parsed".to_string(),
                             }
@@ -308,11 +308,11 @@ async fn update_snapshot_via_multicall(ctx: Arc<BalanceContext>, sub: &subscript
         Ok(balances) => {
             let mut balances_snapshot = sub.balances_snapshot.write().await;
             *balances_snapshot = balances.clone();
-            subscription_manager::BalanceEvent::FullSnapshot(balances)
+            BalanceEvent::FullSnapshot(balances)
         },
         Err(e) => {
             tracing::error!("Failed to get balances for {}: {}", ctx.owner, e);
-            subscription_manager::BalanceEvent::Error {
+            BalanceEvent::Error {
                 code: 500,
                 message: "Error when make multicall3 request".to_string()
             }

@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use alloy::primitives::{address, Address};
 use serde::{Deserialize, Deserializer};
-use crate::evm::errors::EvmError;
+use crate::domain::errors::EvmError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u64)]
@@ -52,3 +52,4 @@ impl<'de> Deserialize<'de> for EvmNetworks {
         EvmNetworks::try_from(id).map_err(serde::de::Error::custom)
     }
 }
+

@@ -2,7 +2,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use futures::Stream;
-use crate::services::subscription_manager::{SubscriptionManager, SubscriptionKey};
+use crate::services::subscription_manager::SubscriptionManager;
+use crate::domain::SubscriptionKey;
 
 pub struct CleanupStream<S> {
     inner: Pin<Box<S>>,
@@ -37,7 +38,13 @@ impl<S> Drop for CleanupStream<S> {
             let manager = Arc::clone(&self.manager);
             let key = self.key.clone();
             tokio::spawn(async move {
-                let _ = manager.unsubscribe(&key).await;
+                let _ = manager.unsubscribe(&key).await.inspect_err(|err| {
+                    tracing::error!(
+                        error = %err,
+                        "error when unsubscribe from sub for {}",
+                        key.owner,
+                    );
+                });
             });
         }
     }

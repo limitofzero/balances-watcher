@@ -4,8 +4,7 @@ use alloy::primitives::Address;
 use axum::{Json, extract::State, extract::Path};
 use crate::app_state::AppState;
 use crate::config::network_config::TokenList;
-use crate::evm::networks::EvmNetworks;
-use crate::evm::token::Token;
+use crate::domain::{EvmNetworks, Token};
 use crate::services::tokens_from_list;
 
 pub async fn get_token_list(Path(network): Path<EvmNetworks>, State(state): State<Arc<AppState>>) -> Json<HashMap<Address, Token>> {

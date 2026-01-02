@@ -6,7 +6,8 @@ use crate::app_state::AppState;
 use alloy::{primitives::Address};
 use alloy::primitives::U256;
 use axum::http::StatusCode;
-use crate::evm::{networks::EvmNetworks, errors::EvmError, erc20::ERC20 };
+use crate::domain::{EvmNetworks, EvmError};
+use crate::evm::erc20::ERC20;
 
 #[derive(Serialize)]
 pub struct BalanceResponse {

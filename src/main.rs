@@ -1,5 +1,5 @@
 mod args;
-
+mod domain;
 mod evm;
 mod config;
 mod app_state;
@@ -12,7 +12,7 @@ mod tracing;
 use std::net::SocketAddr;
 use crate::args::Args;
 use config::network_config::{NetworkConfig};
-use crate::evm::{networks::EvmNetworks};
+use crate::domain::EvmNetworks;
 use app_state::AppState;
 use tokio::net::TcpListener;
 use crate::routes::create_router::create_router;

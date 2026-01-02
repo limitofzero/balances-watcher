@@ -3,7 +3,7 @@ use std::sync::Arc;
 use alloy::network::Ethereum;
 use alloy::providers::{DynProvider, Provider, ProviderBuilder, WsConnect};
 use crate::config::network_config::NetworkConfig;
-use crate::evm::networks::EvmNetworks;
+use crate::domain::EvmNetworks;
 use crate::services::subscription_manager::SubscriptionManager;
 
 #[derive(Clone)]

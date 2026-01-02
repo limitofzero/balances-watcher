@@ -1,23 +1,9 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 use alloy::primitives::Address;
-use serde::Serialize;
-use crate::evm::networks::EvmNetworks;
 use tokio::sync::{broadcast, RwLock};
+use crate::domain::{BalanceEvent, SubscriptionKey};
 use crate::services::errors::SubscriptionError;
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct SubscriptionKey {
-    pub owner: Address,
-    pub network: EvmNetworks,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub enum BalanceEvent {
-    FullSnapshot(HashMap<Address, String>),
-    TokenBalanceUpdated{ address: Address, balance: String },
-    Error { code: u16, message: String },
-}
 
 struct SubWithCounter {
     pub clients: u32,

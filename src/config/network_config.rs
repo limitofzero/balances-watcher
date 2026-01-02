@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use serde::Deserialize;
-use crate::evm::networks::EvmNetworks;
+use crate::domain::EvmNetworks;
 use crate::args::Args;
 use std::fs;
 use std::ops::Mul;
