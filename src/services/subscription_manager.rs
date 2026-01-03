@@ -1,3 +1,4 @@
+use crate::config::constants::BROADCAST_CHANNEL_CAPACITY;
 use crate::domain::{BalanceEvent, SubscriptionKey};
 use crate::services::errors::SubscriptionError;
 use alloy::primitives::Address;
@@ -43,7 +44,7 @@ impl SubscriptionManager {
             return Ok((receiver, false, Arc::clone(&existing.subscription)));
         }
 
-        let (sender, receiver) = broadcast::channel::<BalanceEvent>(256);
+        let (sender, receiver) = broadcast::channel::<BalanceEvent>(BROADCAST_CHANNEL_CAPACITY);
         let subscription = Arc::new(Subscription {
             sender,
             balances_snapshot: RwLock::new(HashMap::new()),

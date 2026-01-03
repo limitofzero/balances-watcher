@@ -1,5 +1,6 @@
 use std::{collections::HashMap, time::Instant};
 
+use crate::config::constants::TOKEN_FETCH_CONCURRENCY;
 use crate::config::network_config::TokenList;
 use crate::domain::Token;
 use alloy::primitives::Address;
@@ -20,7 +21,6 @@ pub async fn get_tokens_from_list(
 
     let t0 = Instant::now();
 
-    let concurrency: usize = 10;
     let client = Client::new();
 
     let mut stream = stream::iter(token_list.iter().cloned())
@@ -32,7 +32,7 @@ pub async fn get_tokens_from_list(
                 (source, result)
             }
         })
-        .buffer_unordered(concurrency);
+        .buffer_unordered(TOKEN_FETCH_CONCURRENCY);
 
     while let Some((source, response)) = stream.next().await {
         match response {

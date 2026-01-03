@@ -6,6 +6,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::str::FromStr;
 
+use super::constants::DEFAULT_SNAPSHOT_INTERVAL_SECS;
+
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenList {
@@ -25,8 +27,6 @@ pub struct NetworkConfig {
     pub snapshot_interval: u64,
     token_list: HashMap<EvmNetwork, Vec<TokenList>>,
 }
-
-const DEFAULT_SNAPSHOT_INTERVAL: u64 = 60;
 
 impl NetworkConfig {
     pub fn init(args: &Args) -> Self {
@@ -72,7 +72,7 @@ impl NetworkConfig {
             .inspect_err(|err| {
                 tracing::warn!("Invalid snapshot interval value: {}", err);
             })
-            .unwrap_or(DEFAULT_SNAPSHOT_INTERVAL);
+            .unwrap_or(DEFAULT_SNAPSHOT_INTERVAL_SECS);
 
         Self {
             rpcs,
