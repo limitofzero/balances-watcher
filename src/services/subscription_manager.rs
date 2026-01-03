@@ -38,7 +38,7 @@ impl SubscriptionManager {
             existing.clients = existing
                 .clients
                 .checked_add(1)
-                .ok_or_else(|| SubscriptionError::TooManyClients)?;
+                .ok_or(SubscriptionError::TooManyClients)?;
             let receiver = existing.subscription.sender.subscribe();
             return Ok((receiver, false, Arc::clone(&existing.subscription)));
         }
@@ -62,14 +62,14 @@ impl SubscriptionManager {
     pub async fn unsubscribe(&self, key: &SubscriptionKey) -> Result<bool, SubscriptionError> {
         let mut subs = self.subscriptions.write().await;
 
-        if let Some(existing) = subs.get_mut(&key) {
+        if let Some(existing) = subs.get_mut(key) {
             existing.clients = existing
                 .clients
                 .checked_sub(1)
-                .ok_or_else(|| SubscriptionError::ThereIsNoClients)?;
+                .ok_or(SubscriptionError::ThereIsNoClients)?;
             if existing.clients == 0 {
                 existing.subscription.cancel_token.cancel();
-                subs.remove(&key);
+                subs.remove(key);
                 return Ok(true);
             }
 

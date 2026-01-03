@@ -1,4 +1,4 @@
-use crate::domain::{EvmNetworks, Token};
+use crate::domain::{EvmNetwork, Token};
 use crate::evm::{erc20::ERC20, multicall3::Multicall3};
 use crate::services::errors::ServiceError;
 use alloy::primitives::{Address, U256};
@@ -11,7 +11,7 @@ pub async fn get_balances(
     tokens: &HashMap<Address, Token>,
     provider: &DynProvider,
     owner: Address,
-    network: EvmNetworks,
+    network: EvmNetwork,
     multicall3_add: Address,
 ) -> Result<HashMap<Address, String>, ServiceError> {
     let native_address = network.native_token_address();
@@ -82,7 +82,7 @@ pub async fn get_balances(
         match <U256 as SolValue>::abi_decode(&resp.returnData) {
             Ok(balance) => {
                 if balance > U256::from(0) {
-                    balances.insert(erc20_token.clone(), balance.to_string());
+                    balances.insert(*erc20_token, balance.to_string());
                 }
             }
             Err(e) => {
@@ -99,7 +99,7 @@ pub async fn get_balances(
 
     match <U256 as SolValue>::abi_decode(&eth_balance_resp.returnData) {
         Ok(abi_data) => {
-            balances.insert(native_address.clone(), abi_data.to_string());
+            balances.insert(native_address, abi_data.to_string());
         }
         Err(e) => {
             tracing::error!(error = %e, "abi_decode failed for {}", native_address);

@@ -1,45 +1,22 @@
 use crate::api::errors::StreamError;
 use crate::app_state::AppState;
 use crate::config::network_config::TokenList;
-use crate::domain::{BalanceEvent, EvmNetworks, SubscriptionKey, Token};
-use crate::evm::erc20::ERC20;
-use crate::services::{balances, cleanup_stream, subscription_manager, tokens_from_list};
-use alloy::primitives::U256;
-use alloy::providers::{DynProvider, Provider};
-use alloy::rpc::types::{Filter, Log, Topic};
-use alloy::sol_types::SolEvent;
-use alloy::{
-    primitives::Address,
-    transports::{RpcError, TransportErrorKind},
-};
+use crate::domain::{BalanceEvent, EvmNetwork, SubscriptionKey};
+use crate::services::watcher::{Watcher, WatcherContext};
+use crate::services::{cleanup_stream, tokens_from_list};
+use alloy::primitives::Address;
 use axum::{
     extract::{Path, State},
     response::sse::{Event, Sse},
 };
 use futures::{Stream, StreamExt};
 use serde::Serialize;
-use std::{collections::HashMap, convert::Infallible, sync::Arc, time::Duration};
-use tokio::time::interval;
+use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio_stream::wrappers::BroadcastStream;
 
 #[derive(Serialize)]
 pub struct BalancesResponse {
     pub balances: HashMap<Address, String>,
-}
-
-// todo decompose the struct
-struct BalanceContext {
-    owner: Address,
-    provider: DynProvider,
-    tokens: HashMap<Address, Token>,
-    network: EvmNetworks,
-    multicall3: Address,
-    ws_provider: DynProvider,
-}
-
-struct TokenBalance {
-    address: Address,
-    balance: U256,
 }
 
 #[derive(Serialize)]
@@ -55,7 +32,7 @@ struct ErrorBalanceSseEvent {
 }
 
 pub async fn get_balances(
-    Path((network, owner)): Path<(EvmNetworks, Address)>,
+    Path((network, owner)): Path<(EvmNetwork, Address)>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StreamError> {
     let provider = match state.providers.get(&network) {
@@ -106,52 +83,19 @@ pub async fn get_balances(
                 message: e.to_string(),
             })?;
 
-    let ctx = Arc::new(BalanceContext {
-        provider,
-        tokens,
-        owner,
-        network,
-        multicall3: *multicall3,
-        ws_provider,
-    });
-
-    let snapshot_interval = state.network_config.snapshot_interval;
-
     if is_first {
-        spawn_balances_snapshot_update(
-            Arc::clone(&ctx),
-            Arc::clone(&subscription),
-            snapshot_interval,
-        )
-        .await;
+        let ctx = WatcherContext {
+            provider,
+            tokens,
+            owner,
+            network,
+            multicall3: *multicall3,
+            ws_provider,
+        };
 
-        match spawn_from_to_erc20_transfer_updates(Arc::clone(&ctx), Arc::clone(&subscription))
-            .await
-        {
-            Ok(()) => {}
-            Err(err) => {
-                tracing::error!(
-                    error = %err,
-                    "error when attempt to subscribe to ws erc20 transfer event for {} network {}",
-                    ctx.owner,
-                    ctx.network,
-                );
-
-                let error_event = BalanceEvent::Error {
-                    code: 500,
-                    message: "Impossible to subscribe to ws erc20 transfer events".to_string(),
-                };
-
-                let _ = subscription.sender.send(error_event).inspect_err(|err| {
-                    tracing::error!(
-                        error = %err,
-                        "error when send error event to client for {} network {}",
-                        ctx.owner,
-                        ctx.network,
-                    );
-                });
-            }
-        }
+        Watcher::new(ctx, Arc::clone(&subscription))
+            .spawn_watchers(state.network_config.snapshot_interval)
+            .await;
     } else {
         let balance_snapshot = subscription.balances_snapshot.read().await;
 
@@ -168,8 +112,8 @@ pub async fn get_balances(
             tracing::error!(
                 error = %err,
                 "error when send balance_snapshot update for new client {} network {}",
-                ctx.owner,
-                ctx.network,
+                owner,
+                network,
             );
         });
     }
@@ -221,159 +165,5 @@ fn balance_event_to_sse(event: BalanceEvent) -> Result<Event, axum::Error> {
         BalanceEvent::Error { code, message } => Event::default()
             .event("error")
             .json_data(ErrorBalanceSseEvent { code, message }),
-    }
-}
-
-async fn spawn_balances_snapshot_update(
-    ctx: Arc<BalanceContext>,
-    sub: Arc<subscription_manager::Subscription>,
-    snapshot_interval: u64,
-) {
-    let cancel = sub.cancel_token.clone();
-
-    tokio::spawn(async move {
-        let mut interval = interval(Duration::from_secs(snapshot_interval));
-
-        loop {
-            tokio::select! {
-                _ = cancel.cancelled() => { break; }
-                _ = interval.tick() => {
-                    update_snapshot_via_multicall(Arc::clone(&ctx), &sub).await;
-                }
-            }
-        }
-    });
-}
-
-async fn spawn_from_to_erc20_transfer_updates(
-    ctx: Arc<BalanceContext>,
-    sub: Arc<subscription_manager::Subscription>,
-) -> Result<(), RpcError<TransportErrorKind>> {
-    let base = Filter::new().event_signature(ERC20::Transfer::SIGNATURE_HASH);
-    let filter_to = base.clone().topic1(Topic::from(ctx.owner));
-    let filter_from = base.clone().topic2(Topic::from(ctx.owner));
-
-    spawn_balances_transfer_updates(Arc::clone(&ctx), Arc::clone(&sub), filter_to).await?;
-    spawn_balances_transfer_updates(Arc::clone(&ctx), Arc::clone(&sub), filter_from).await?;
-
-    Ok(())
-}
-
-async fn spawn_balances_transfer_updates(
-    ctx: Arc<BalanceContext>,
-    sub: Arc<subscription_manager::Subscription>,
-    filter: Filter,
-) -> Result<(), RpcError<TransportErrorKind>> {
-    let mut ws_stream = ctx
-        .ws_provider
-        .clone()
-        .subscribe_logs(&filter)
-        .await?
-        .into_stream();
-
-    let cancel = sub.cancel_token.clone();
-
-    tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                _ = cancel.cancelled() => {
-                    break;
-                },
-                Some(log) = ws_stream.next() => {
-                    let token_balance = parse_transfer_and_get_balance(Arc::clone(&ctx), &log).await;
-                    let event = match token_balance {
-                        Some(balance) => {
-                            let balance_as_string = balance.balance.to_string();
-                            let mut balances_snapshot = sub.balances_snapshot.write().await;
-                            balances_snapshot.insert(balance.address.clone(), balance_as_string.clone());
-                            BalanceEvent::TokenBalanceUpdated {
-                                address: balance.address,
-                                balance: balance_as_string,
-                            }
-                        },
-                        None => {
-                            BalanceEvent::Error {
-                                code: 500,
-                                message: "Error when transfer event was parsed".to_string(),
-                            }
-                        }
-                    };
-
-                    let _ = sub.sender.send(event).inspect_err(|err| {
-                        tracing::error!("error when send event update token event {err}");
-                    });
-                }
-            }
-        }
-    });
-
-    Ok(())
-}
-
-async fn update_snapshot_via_multicall(
-    ctx: Arc<BalanceContext>,
-    sub: &subscription_manager::Subscription,
-) {
-    let result = balances::get_balances(
-        &ctx.tokens,
-        &ctx.provider,
-        ctx.owner,
-        ctx.network,
-        ctx.multicall3,
-    )
-    .await;
-
-    let event = match result {
-        Ok(balances) => {
-            let mut balances_snapshot = sub.balances_snapshot.write().await;
-            *balances_snapshot = balances.clone();
-            BalanceEvent::FullSnapshot(balances)
-        }
-        Err(e) => {
-            tracing::error!("Failed to get balances for {}: {}", ctx.owner, e);
-            BalanceEvent::Error {
-                code: 500,
-                message: "Error when make multicall3 request".to_string(),
-            }
-        }
-    };
-
-    let _ = sub.sender.send(event).inspect_err(|err| {
-        tracing::error!("error when send update_snapshot event: {err}");
-    });
-}
-
-async fn parse_transfer_and_get_balance(
-    ctx: Arc<BalanceContext>,
-    log: &Log,
-) -> Option<TokenBalance> {
-    let block_number = log.block_number?;
-
-    let decoded_log: Log<ERC20::Transfer> = match log.log_decode() {
-        Ok(log) => log,
-        Err(_) => return None,
-    };
-
-    let erc20 = ERC20::new(decoded_log.address(), &ctx.provider);
-
-    match erc20
-        .balanceOf(ctx.owner)
-        .block(block_number.into())
-        .call()
-        .await
-    {
-        Ok(balance) => Some(TokenBalance {
-            address: decoded_log.address(),
-            balance,
-        }),
-        Err(e) => {
-            tracing::error!(
-                "failed to get balance for {} at block {}: {:?}",
-                decoded_log.address(),
-                block_number,
-                e
-            );
-            None
-        }
     }
 }

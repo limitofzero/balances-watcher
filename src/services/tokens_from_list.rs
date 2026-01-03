@@ -14,7 +14,7 @@ pub struct ApiResponse {
 
 pub async fn get_tokens_from_list(
     token_list: &Vec<TokenList>,
-    network: crate::domain::EvmNetworks,
+    network: crate::domain::EvmNetwork,
 ) -> HashMap<Address, Token> {
     let mut active_tokens: HashMap<Address, Token> = HashMap::new();
 

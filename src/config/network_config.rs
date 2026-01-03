@@ -1,10 +1,9 @@
 use crate::args::Args;
-use crate::domain::EvmNetworks;
+use crate::domain::EvmNetwork;
 use alloy::primitives::Address;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
-use std::ops::Mul;
 use std::str::FromStr;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -16,42 +15,42 @@ pub struct TokenList {
     pub source: String,
 }
 
-pub type TokenListConfig = HashMap<EvmNetworks, Vec<TokenList>>;
+pub type TokenListConfig = HashMap<EvmNetwork, Vec<TokenList>>;
 
 #[derive(Debug)]
 pub struct NetworkConfig {
-    pub rpcs: HashMap<EvmNetworks, String>,
-    pub ws_rpcs: HashMap<EvmNetworks, String>,
+    pub rpcs: HashMap<EvmNetwork, String>,
+    pub ws_rpcs: HashMap<EvmNetwork, String>,
     pub multicall_address: Address,
     pub snapshot_interval: u64,
-    token_list: HashMap<EvmNetworks, Vec<TokenList>>,
+    token_list: HashMap<EvmNetwork, Vec<TokenList>>,
 }
 
 const DEFAULT_SNAPSHOT_INTERVAL: u64 = 60;
 
 impl NetworkConfig {
     pub fn init(args: &Args) -> Self {
-        let mut rpcs: HashMap<EvmNetworks, String> = HashMap::new();
-        let mut ws_rpcs: HashMap<EvmNetworks, String> = HashMap::new();
+        let mut rpcs: HashMap<EvmNetwork, String> = HashMap::new();
+        let mut ws_rpcs: HashMap<EvmNetwork, String> = HashMap::new();
 
         if !args.arbitrum_rpc.is_empty() {
-            rpcs.insert(EvmNetworks::Arbitrum, args.arbitrum_rpc.clone());
+            rpcs.insert(EvmNetwork::Arbitrum, args.arbitrum_rpc.clone());
         }
 
         if !args.eth_rpc.is_empty() {
-            rpcs.insert(EvmNetworks::Eth, args.eth_rpc.clone());
+            rpcs.insert(EvmNetwork::Eth, args.eth_rpc.clone());
         }
 
         if !args.eth_ws_rpc.is_empty() {
-            ws_rpcs.insert(EvmNetworks::Eth, args.eth_ws_rpc.clone());
+            ws_rpcs.insert(EvmNetwork::Eth, args.eth_ws_rpc.clone());
         }
 
         if !args.sepolia_rpc.is_empty() {
-            rpcs.insert(EvmNetworks::Sepolia, args.sepolia_rpc.clone());
+            rpcs.insert(EvmNetwork::Sepolia, args.sepolia_rpc.clone());
         }
 
         if !args.sepolia_ws_rpc.is_empty() {
-            ws_rpcs.insert(EvmNetworks::Sepolia, args.sepolia_ws_rpc.clone());
+            ws_rpcs.insert(EvmNetwork::Sepolia, args.sepolia_ws_rpc.clone());
         }
 
         let token_list_config: TokenListConfig = {
@@ -84,11 +83,11 @@ impl NetworkConfig {
         }
     }
 
-    pub fn rpc_url(&self, network: EvmNetworks) -> Option<&String> {
+    pub fn rpc_url(&self, network: EvmNetwork) -> Option<&String> {
         self.rpcs.get(&network)
     }
 
-    pub fn token_list(&self, network: EvmNetworks) -> Option<&Vec<TokenList>> {
+    pub fn token_list(&self, network: EvmNetwork) -> Option<&Vec<TokenList>> {
         self.token_list.get(&network)
     }
 

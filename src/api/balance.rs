@@ -1,5 +1,5 @@
 use crate::app_state::AppState;
-use crate::domain::{EvmError, EvmNetworks};
+use crate::domain::{EvmError, EvmNetwork};
 use crate::evm::erc20::ERC20;
 use alloy::primitives::Address;
 use alloy::primitives::U256;
@@ -15,7 +15,7 @@ pub struct BalanceResponse {
 }
 
 pub async fn get_token_balance(
-    Path((chain, owner, token)): Path<(EvmNetworks, Address, Address)>,
+    Path((chain, owner, token)): Path<(EvmNetwork, Address, Address)>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<BalanceResponse>, (StatusCode, String)> {
     let provider = match state.providers.get(&chain) {

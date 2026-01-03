@@ -1,4 +1,4 @@
-use crate::domain::EvmNetworks;
+use crate::domain::EvmNetwork;
 use alloy::primitives::Address;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -7,7 +7,7 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct SubscriptionKey {
     pub owner: Address,
-    pub network: EvmNetworks,
+    pub network: EvmNetwork,
 }
 
 /// Events sent to SSE clients
