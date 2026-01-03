@@ -1,0 +1,3 @@
+# Stable rustfmt options
+edition = "2021"
+reorder_imports = true
