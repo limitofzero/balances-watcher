@@ -4,7 +4,6 @@ mod args;
 mod config;
 mod domain;
 mod evm;
-mod infra;
 mod routes;
 mod services;
 mod tracing;
