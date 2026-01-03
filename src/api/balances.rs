@@ -63,14 +63,6 @@ pub async fn get_balances(
         });
     }
 
-    let network_token_list: Vec<TokenList> = state
-        .network_config
-        .token_list(network)
-        .cloned()
-        .unwrap_or_default();
-
-    let tokens = tokens_from_list::get_tokens_from_list(&network_token_list, network).await;
-
     let sub_key = SubscriptionKey { owner, network };
 
     let (rx, is_first, subscription) =
@@ -84,6 +76,14 @@ pub async fn get_balances(
             })?;
 
     if is_first {
+        let network_token_list: Vec<TokenList> = state
+            .network_config
+            .token_list(network)
+            .cloned()
+            .unwrap_or_default();
+
+        let tokens = tokens_from_list::get_tokens_from_list(&network_token_list, network).await;
+
         let ctx = WatcherContext {
             provider,
             tokens,
