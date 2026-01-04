@@ -8,18 +8,75 @@ Real-time ERC20 token balance tracking service with SSE (Server-Sent Events) sup
 - Multicall for batch balance queries
 - WebSocket subscriptions for Transfer events
 - Multi-chain support (Ethereum, Arbitrum, Sepolia)
+- Session-based token list management
+- Shared subscriptions for multiple clients
 
 ## API Endpoints
 
-### Get Token List
+### Create Session
+
+Creates a new session with token lists to watch. **Must be called before SSE connection.**
 
 ```bash
-curl http://localhost:8080/{chain_id}/tokens-list
+POST /{chain_id}/sessions/{owner}
+Content-Type: application/json
+
+{
+  "tokensListsUrls": ["https://tokens.coingecko.com/uniswap/all.json"],
+  "customTokens": ["0xTokenAddress1", "0xTokenAddress2"]
+}
 ```
 
 **Example:**
 ```bash
-curl http://localhost:8080/1/tokens-list
+curl -X POST http://localhost:8080/1/sessions/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 \
+  -H "Content-Type: application/json" \
+  -d '{"tokensListsUrls": ["https://tokens.coingecko.com/uniswap/all.json"]}'
+```
+
+### Update Session
+
+Adds more tokens to an existing session.
+
+```bash
+PUT /{chain_id}/sessions/{owner}
+Content-Type: application/json
+
+{
+  "tokensListsUrls": ["https://another-list.json"],
+  "customTokens": ["0xNewTokenAddress"]
+}
+```
+
+### SSE Balances Stream
+
+Subscribe to real-time balance updates. **Requires an active session.**
+
+```bash
+curl -N http://localhost:8080/sse/{chain_id}/balances/{owner}
+```
+
+**Example (Ethereum mainnet):**
+```bash
+curl -N http://localhost:8080/sse/1/balances/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+```
+
+**SSE Events:**
+
+| Event | Description |
+|-------|-------------|
+| `all_balances` | Full balance snapshot (sent on connect and every interval) |
+| `balance_update` | Single token balance update (on Transfer event) |
+| `error` | Error message |
+
+**Response format:**
+
+```
+event: all_balances
+data: {"balances":{"0xToken1Address":"1000000","0xToken2Address":"500000"}}
+
+event: balance_update
+data: {"address":"0xTokenAddress","balance":"1500000"}
 ```
 
 ### Get Single Token Balance
@@ -33,40 +90,29 @@ curl http://localhost:8080/{chain_id}/balance/{owner}/{token}
 curl http://localhost:8080/1/balance/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045/0xdAC17F958D2ee523a2206206994597C13D831ec7
 ```
 
-### SSE Balances Stream
+## Usage Flow
 
-Subscribe to real-time balance updates for all tokens.
+1. **Create session** with token lists URLs
+2. **Connect to SSE** to receive real-time updates
+3. **(Optional)** Update session to add more tokens dynamically
 
-```bash
-curl -N http://localhost:8080/sse/{chain_id}/balances/{owner}
-```
-
-**Example (Ethereum mainnet):**
-```bash
-curl -N http://localhost:8080/sse/1/balances/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
-```
-
-**Example (Sepolia testnet):**
-```bash
-curl -N http://localhost:8080/sse/11155111/balances/0xYourWalletAddress
-```
-
-**SSE Events:**
-
-| Event | Description |
-|-------|-------------|
-| `balances` | Full balance snapshot (sent every 60s) |
-| `update_balance` | Single token balance update (on Transfer event) |
-| `error` | Error message |
-
-**Response format:**
-
-```
-event: balances
-data: {"balances":{"0xToken1Address":"1000000","0xToken2Address":"500000"}}
-
-event: update_balance
-data: {"address":"0xTokenAddress","balance":"1500000"}
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: POST /1/sessions/0x... (token lists)
+    Server-->>Client: 200 OK
+    
+    Client->>Server: GET /sse/1/balances/0x...
+    Server-->>Client: SSE: all_balances {...}
+    
+    loop On Transfer events
+        Server-->>Client: SSE: balance_update {...}
+    end
+    
+    Client->>Server: PUT /1/sessions/0x... (add tokens)
+    Server-->>Client: 200 OK
 ```
 
 ## Environment Variables
@@ -79,8 +125,8 @@ data: {"address":"0xTokenAddress","balance":"1500000"}
 | `ARBITRUM_RPC` | Arbitrum HTTP RPC URL | - |
 | `SEPOLIA_RPC` | Sepolia HTTP RPC URL | - |
 | `SEPOLIA_WC_RPC` | Sepolia WebSocket RPC URL | - |
-| `TOKEN_LIST_PATH` | Path to token list config | `configs/tokens_list.json` |
-| `MULTICALL_ADDRESS` | Multicall3 contract address | - |
+| `MULTICALL_ADDRESS` | Multicall3 contract address | `0xcA11bde05977b3631167028862bE2a173976CA11` |
+| `SNAPSHOT_INTERVAL` | Balance snapshot interval in seconds | `60` |
 
 ## Quick Start
 
@@ -123,19 +169,36 @@ src/
 ├── main.rs              # Entry point
 ├── args.rs              # CLI arguments
 ├── app_state.rs         # Application state
+├── app_error.rs         # Error types
 ├── api/                 # HTTP handlers
 │   ├── balance.rs       # Single balance endpoint
 │   ├── balances.rs      # SSE balances stream
-│   └── tokens_list.rs   # Token list endpoint
+│   ├── create_session.rs # Session creation
+│   └── update_session.rs # Session update
 ├── config/              # Configuration
-├── evm/                 # EVM types (networks, tokens, ERC20)
+├── domain/              # Domain models
+│   ├── events.rs        # Balance events
+│   ├── network.rs       # Network types
+│   └── token.rs         # Token types
+├── evm/                 # EVM contracts (ERC20, Multicall3)
 ├── routes/              # Router setup
 ├── services/            # Business logic
+│   ├── subscription_manager.rs  # Shared subscriptions
+│   ├── watcher.rs       # Balance watchers
+│   ├── balances.rs      # Multicall service
+│   └── tokens_from_list.rs # Token list fetcher
 ├── infra/               # Infrastructure (providers)
 └── tracing/             # Logging setup
 ```
 
+## Roadmap
+
+- [ ] **WETH Wrap/Unwrap listening** - Handle Deposit/Withdrawal events for WETH contract
+- [ ] **Token lists caching** - Cache fetched token lists with TTL to reduce HTTP requests
+- [ ] **CoW Protocol order events** - Listen for ETH order settlements on CoW Protocol
+- [ ] **ETH transactions listening** - Monitor ETH transfers to track native balance changes
+- [ ] **Reorgs handling** - Detect and handle chain reorganizations for data consistency
+
 ## License
 
 MIT
-
