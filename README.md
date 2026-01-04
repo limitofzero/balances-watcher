@@ -193,11 +193,29 @@ src/
 
 ## Roadmap
 
-- [ ] **WETH Wrap/Unwrap listening** - Handle Deposit/Withdrawal events for WETH contract
-- [ ] **Token lists caching** - Cache fetched token lists with TTL to reduce HTTP requests
-- [ ] **CoW Protocol order events** - Listen for ETH order settlements on CoW Protocol
-- [ ] **ETH transactions listening** - Monitor ETH transfers to track native balance changes
-- [ ] **Reorgs handling** - Detect and handle chain reorganizations for data consistency
+### High Priority
+- [ ] **Health check endpoint** - `/health` for load balancers and monitoring
+- [ ] **Prometheus metrics** - Track subscriptions, RPC latency, WebSocket reconnections
+- [ ] **Rate limiting** - Limit sessions per IP and tokens per session
+- [ ] **Session expiry/cleanup** - TTL for idle sessions, background cleanup task
+- [ ] **Graceful shutdown** - Cancel watchers and close connections on SIGTERM
+
+### Medium Priority
+- [ ] **WebSocket reconnection** - Auto-reconnect and resubscribe on WS disconnect
+- [ ] **Token list validation** - HTTPS only, domain blocklist, schema validation
+- [ ] **Token list fetch retry** - Exponential backoff on failures
+- [ ] **SSE heartbeat** - Periodic `:ping` to prevent proxy timeouts
+
+### Features
+- [ ] **WETH wrap/unwrap listening** - Handle Deposit/Withdrawal events
+- [ ] **Token lists caching** - Cache with TTL to reduce HTTP requests
+- [ ] **CoW Protocol order events** - Listen for ETH order settlements
+- [ ] **ETH transactions listening** - Monitor native balance changes
+- [ ] **Reorgs handling** - Detect and handle chain reorganizations
+- [ ] **Balance change metadata** - Include txHash, blockNumber, previousBalance
+- [ ] **Batch balance endpoint** - One-off multi-token queries without SSE
+- [ ] **Allowances tracking** - ERC20 Approval events and allowances in snapshot
+- [ ] **OpenAPI docs** - Auto-generate API docs with utoipa
 
 ## License
 
