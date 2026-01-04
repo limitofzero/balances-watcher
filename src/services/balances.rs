@@ -4,11 +4,11 @@ use crate::services::errors::ServiceError;
 use alloy::primitives::{Address, U256};
 use alloy::providers::DynProvider;
 use alloy::sol_types::{SolCall, SolValue};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 pub async fn get_balances(
-    tokens: &HashMap<Address, Token>,
+    tokens: &HashSet<Address>,
     provider: &DynProvider,
     owner: Address,
     network: EvmNetwork,
@@ -16,7 +16,7 @@ pub async fn get_balances(
 ) -> Result<HashMap<Address, String>, ServiceError> {
     let native_address = network.native_token_address();
     let mut erc20_tokens: Vec<Address> = tokens
-        .keys()
+        .iter()
         .cloned()
         .filter(|a| *a != native_address)
         .collect();

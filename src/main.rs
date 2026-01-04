@@ -1,4 +1,5 @@
 mod api;
+mod app_error;
 mod app_state;
 mod args;
 mod config;

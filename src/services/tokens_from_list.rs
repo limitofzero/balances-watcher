@@ -1,8 +1,8 @@
-use std::{collections::HashMap, time::Instant};
+use std::{collections::HashSet, time::Instant};
 
 use crate::config::constants::TOKEN_FETCH_CONCURRENCY;
-use crate::config::network_config::TokenList;
-use crate::domain::Token;
+use crate::domain::{EvmNetwork, Token};
+use crate::services::errors::ServiceError;
 use alloy::primitives::Address;
 use alloy::transports::http::{reqwest, Client};
 use futures::{stream, StreamExt};
@@ -14,10 +14,10 @@ pub struct ApiResponse {
 }
 
 pub async fn get_tokens_from_list(
-    token_list: &Vec<TokenList>,
-    network: crate::domain::EvmNetwork,
-) -> HashMap<Address, Token> {
-    let mut active_tokens: HashMap<Address, Token> = HashMap::new();
+    token_list: &Vec<String>,
+    network: EvmNetwork,
+) -> Result<HashSet<Address>, ServiceError> {
+    let mut active_tokens: HashSet<Address> = HashSet::new();
 
     let t0 = Instant::now();
 
@@ -27,7 +27,7 @@ pub async fn get_tokens_from_list(
         .map(move |list| {
             let client = client.clone();
             async move {
-                let source = list.source.clone();
+                let source = list.clone();
                 let result = fetch_tokens(&client, &source).await;
                 (source, result)
             }
@@ -40,7 +40,7 @@ pub async fn get_tokens_from_list(
                 for token in result.tokens {
                     let address = token.address.parse::<Address>().unwrap();
                     if token.chain_id == network.chain_id() {
-                        active_tokens.insert(address, token);
+                        active_tokens.insert(address);
                     }
                 }
             }
@@ -49,13 +49,15 @@ pub async fn get_tokens_from_list(
                     "get_tokens_from_list: failed to fetch tokens from list({source}): {:?}",
                     e
                 );
+
+                return Err(ServiceError::UnableToLoadList(source));
             }
         }
     }
 
     tracing::info!(time = t0.elapsed().as_millis(), "finished fetching tokens");
 
-    active_tokens
+    Ok(active_tokens)
 }
 
 async fn fetch_tokens(

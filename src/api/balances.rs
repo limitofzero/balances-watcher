@@ -1,9 +1,8 @@
 use crate::api::errors::StreamError;
 use crate::app_state::AppState;
-use crate::config::network_config::TokenList;
 use crate::domain::{BalanceEvent, EvmNetwork, SubscriptionKey};
+use crate::services::cleanup_stream;
 use crate::services::watcher::{Watcher, WatcherContext};
-use crate::services::{cleanup_stream, tokens_from_list};
 use alloy::primitives::Address;
 use axum::{
     extract::{Path, State},
@@ -76,17 +75,9 @@ pub async fn get_balances(
             })?;
 
     if is_first {
-        let network_token_list: Vec<TokenList> = state
-            .network_config
-            .token_list(network)
-            .cloned()
-            .unwrap_or_default();
-
-        let tokens = tokens_from_list::get_tokens_from_list(&network_token_list, network).await;
-
+        // TODO check tokens size - threw error if 0
         let ctx = WatcherContext {
             provider,
-            tokens,
             owner,
             network,
             multicall3: *multicall3,

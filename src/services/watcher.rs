@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use alloy::{
     primitives::{Address, U256},
@@ -11,7 +11,7 @@ use thiserror::Error;
 use tokio::time::interval;
 
 use crate::{
-    domain::{BalanceEvent, EvmNetwork, Token},
+    domain::{BalanceEvent, EvmNetwork},
     evm::erc20::ERC20,
     services::{balances, subscription_manager::Subscription},
 };
@@ -30,7 +30,6 @@ pub enum WatcherError {
 pub struct WatcherContext {
     pub owner: Address,
     pub provider: DynProvider,
-    pub tokens: HashMap<Address, Token>,
     pub network: EvmNetwork,
     pub multicall3: Address,
     pub ws_provider: DynProvider,
@@ -83,14 +82,18 @@ impl Watcher {
     }
 
     async fn fetch_balances_and_broadcast(ctx: Arc<WatcherContext>, sub: Arc<Subscription>) {
+        let tokens = sub.tokens.read().await;
+
         let result = balances::get_balances(
-            &ctx.tokens,
+            &tokens,
             &ctx.provider,
             ctx.owner,
             ctx.network,
             ctx.multicall3,
         )
         .await;
+
+        drop(tokens);
 
         let event = match result {
             Ok(balances) => {

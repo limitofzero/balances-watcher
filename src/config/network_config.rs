@@ -1,23 +1,10 @@
 use crate::args::Args;
 use crate::domain::EvmNetwork;
 use alloy::primitives::Address;
-use serde::Deserialize;
 use std::collections::HashMap;
-use std::fs;
 use std::str::FromStr;
 
 use super::constants::DEFAULT_SNAPSHOT_INTERVAL_SECS;
-
-#[derive(Debug, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct TokenList {
-    pub priority: u8,
-    #[serde(default)]
-    pub enabled_by_default: bool,
-    pub source: String,
-}
-
-pub type TokenListConfig = HashMap<EvmNetwork, Vec<TokenList>>;
 
 #[derive(Debug)]
 pub struct NetworkConfig {
@@ -25,7 +12,6 @@ pub struct NetworkConfig {
     pub ws_rpcs: HashMap<EvmNetwork, String>,
     pub multicall_address: Address,
     pub snapshot_interval: u64,
-    token_list: HashMap<EvmNetwork, Vec<TokenList>>,
 }
 
 impl NetworkConfig {
@@ -53,12 +39,6 @@ impl NetworkConfig {
             ws_rpcs.insert(EvmNetwork::Sepolia, args.sepolia_ws_rpc.clone());
         }
 
-        let token_list_config: TokenListConfig = {
-            let path = args.token_list_path.clone();
-            let content = fs::read_to_string(path).expect("Unable to read token list file");
-            serde_json::from_str(content.as_str()).expect("Unable to parse token list file")
-        };
-
         let multicall_address = Address::from_str(&args.multicall_address)
             .inspect_err(|err| {
                 tracing::error!("Failed to parse multicall_address {}", err);
@@ -76,7 +56,6 @@ impl NetworkConfig {
 
         Self {
             rpcs,
-            token_list: token_list_config,
             multicall_address,
             ws_rpcs,
             snapshot_interval,
@@ -85,10 +64,6 @@ impl NetworkConfig {
 
     pub fn rpc_url(&self, network: EvmNetwork) -> Option<&String> {
         self.rpcs.get(&network)
-    }
-
-    pub fn token_list(&self, network: EvmNetwork) -> Option<&Vec<TokenList>> {
-        self.token_list.get(&network)
     }
 
     pub fn multicall_address(&self) -> &Address {

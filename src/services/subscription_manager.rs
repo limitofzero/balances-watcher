@@ -2,7 +2,7 @@ use crate::config::constants::BROADCAST_CHANNEL_CAPACITY;
 use crate::domain::{BalanceEvent, SubscriptionKey};
 use crate::services::errors::SubscriptionError;
 use alloy::primitives::Address;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 
@@ -15,9 +15,11 @@ pub struct Subscription {
     pub sender: broadcast::Sender<BalanceEvent>,
     pub balances_snapshot: RwLock<HashMap<Address, String>>,
     pub cancel_token: tokio_util::sync::CancellationToken,
+    pub tokens: RwLock<HashSet<Address>>,
 }
 
 pub struct SubscriptionManager {
+    // TODO implement removing key after timeout
     subscriptions: RwLock<HashMap<SubscriptionKey, SubWithCounter>>,
 }
 
@@ -26,6 +28,55 @@ impl SubscriptionManager {
         Self {
             subscriptions: RwLock::new(HashMap::new()),
         }
+    }
+
+    pub async fn create_or_update(
+        &self,
+        key: SubscriptionKey,
+        tokens: HashSet<Address>,
+    ) -> Arc<Subscription> {
+        let mut subs = self.subscriptions.write().await;
+        if let Some(existing) = subs.get_mut(&key) {
+            let mut watched_tokens = existing.subscription.tokens.write().await;
+            let prev_count = watched_tokens.len();
+            watched_tokens.extend(tokens);
+
+            let new_count = watched_tokens.len();
+
+            tracing::info!(
+                "tokens were updated, prev count: {}, new count: {}",
+                prev_count,
+                new_count
+            );
+
+            return Arc::clone(&existing.subscription);
+        }
+
+        let (sender, _) = broadcast::channel::<BalanceEvent>(BROADCAST_CHANNEL_CAPACITY);
+
+        let tokens_len = tokens.len();
+        let subscription = Arc::new(Subscription {
+            sender,
+            balances_snapshot: RwLock::new(HashMap::new()),
+            cancel_token: tokio_util::sync::CancellationToken::new(),
+            tokens: RwLock::new(tokens),
+        });
+
+        let sub_with_counter = SubWithCounter {
+            clients: 0,
+            subscription: Arc::clone(&subscription),
+        };
+
+        subs.insert(key, sub_with_counter);
+
+        tracing::info!("session was created with token len: {}", tokens_len);
+
+        Arc::clone(&subscription)
+    }
+
+    pub async fn get_subscription(&self, key: SubscriptionKey) -> Option<Arc<Subscription>> {
+        let subs = self.subscriptions.read().await;
+        subs.get(&key).map(|sub| Arc::clone(&sub.subscription))
     }
 
     pub async fn subscribe(
@@ -41,22 +92,11 @@ impl SubscriptionManager {
                 .checked_add(1)
                 .ok_or(SubscriptionError::TooManyClients)?;
             let receiver = existing.subscription.sender.subscribe();
-            return Ok((receiver, false, Arc::clone(&existing.subscription)));
+            let is_first = existing.clients == 1;
+            return Ok((receiver, is_first, Arc::clone(&existing.subscription)));
         }
 
-        let (sender, receiver) = broadcast::channel::<BalanceEvent>(BROADCAST_CHANNEL_CAPACITY);
-        let subscription = Arc::new(Subscription {
-            sender,
-            balances_snapshot: RwLock::new(HashMap::new()),
-            cancel_token: tokio_util::sync::CancellationToken::new(),
-        });
-        let sub_with_counter = SubWithCounter {
-            clients: 1,
-            subscription: Arc::clone(&subscription),
-        };
-
-        subs.insert(key, sub_with_counter);
-        Ok((receiver, true, Arc::clone(&subscription)))
+        Err(SubscriptionError::NoSession)
     }
 
     // true - if it was the last client
