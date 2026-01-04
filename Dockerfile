@@ -30,7 +30,6 @@ RUN useradd -m -u 1000 -s /usr/sbin/nologin appuser
 WORKDIR /app
 
 COPY --from=builder /app/target/release/balances-watcher /app/balances-watcher
-COPY configs ./configs
 
 RUN chown -R appuser:appuser /app
 

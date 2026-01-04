@@ -1,16 +1,16 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use crate::config::network_config::NetworkConfig;
+use crate::domain::EvmNetwork;
+use crate::services::subscription_manager::SubscriptionManager;
 use alloy::network::Ethereum;
 use alloy::providers::{DynProvider, Provider, ProviderBuilder, WsConnect};
-use crate::config::network_config::NetworkConfig;
-use crate::evm::networks::EvmNetworks;
-use crate::services::subscription_manager::SubscriptionManager;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppState {
     pub network_config: Arc<NetworkConfig>,
-    pub providers: Arc<HashMap<EvmNetworks, DynProvider<Ethereum>>>,
-    pub ws_providers: Arc<HashMap<EvmNetworks, DynProvider>>,
+    pub providers: Arc<HashMap<EvmNetwork, DynProvider<Ethereum>>>,
+    pub ws_providers: Arc<HashMap<EvmNetwork, DynProvider>>,
     pub sub_manager: Arc<SubscriptionManager>,
 }
 
@@ -27,37 +27,48 @@ impl AppState {
         })
     }
 
-    async fn build_rpc_roviders_map(rpcs: &HashMap<EvmNetworks, String>) -> HashMap<EvmNetworks, DynProvider<Ethereum>> {
-        let mut providers: HashMap<EvmNetworks, DynProvider<Ethereum>>  = HashMap::new();
+    async fn build_rpc_roviders_map(
+        rpcs: &HashMap<EvmNetwork, String>,
+    ) -> HashMap<EvmNetwork, DynProvider<Ethereum>> {
+        let mut providers: HashMap<EvmNetwork, DynProvider<Ethereum>> = HashMap::new();
 
         for (network, rpc) in rpcs {
-            if rpc.is_empty() { continue; }
+            if rpc.is_empty() {
+                continue;
+            }
 
-            match ProviderBuilder::new().connect(&rpc).await {
+            match ProviderBuilder::new().connect(rpc).await {
                 Ok(provider) => {
-                    providers.insert(network.clone(), provider.erased());
+                    providers.insert(*network, provider.erased());
                     tracing::info!("Provider for network {} is registered", network);
-                },
+                }
                 Err(e) => {
-                    tracing::warn!(error = e.to_string().as_str(), "RPC http provider failed to connect");
-                },
+                    tracing::warn!(
+                        error = e.to_string().as_str(),
+                        "RPC http provider failed to connect"
+                    );
+                }
             };
         }
 
         providers
     }
 
-    async fn build_ws_rpc_providers(ws_rpcs: &HashMap<EvmNetworks, String>) -> HashMap<EvmNetworks, DynProvider> {
-        let mut providers: HashMap<EvmNetworks, DynProvider> = HashMap::new();
+    async fn build_ws_rpc_providers(
+        ws_rpcs: &HashMap<EvmNetwork, String>,
+    ) -> HashMap<EvmNetwork, DynProvider> {
+        let mut providers: HashMap<EvmNetwork, DynProvider> = HashMap::new();
 
         for (network, ws_rpc) in ws_rpcs {
-            if ws_rpc.is_empty() { continue; }
+            if ws_rpc.is_empty() {
+                continue;
+            }
 
             let wc = WsConnect::new(ws_rpc);
             match ProviderBuilder::new().connect_ws(wc).await {
                 Ok(provider) => {
-                    providers.insert(network.clone(), provider.erased());
-                },
+                    providers.insert(*network, provider.erased());
+                }
                 Err(e) => {
                     tracing::error!("Error to init ws connection {:?}", e);
                 }

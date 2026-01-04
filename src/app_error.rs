@@ -1,0 +1,51 @@
+use alloy::primitives::Address;
+use axum::{http::StatusCode, response::IntoResponse, Json};
+use serde::Serialize;
+use thiserror::Error;
+
+use crate::domain::EvmNetwork;
+
+#[derive(Error, Debug)]
+pub enum AppError {
+    #[error("Not found: {0}")]
+    NotFound(String),
+
+    #[error("Internal error: {0}")]
+    Internal(String),
+
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+
+    #[error("Provider is not defined for network {0}")]
+    ProviderIsNotDefined(EvmNetwork),
+
+    #[error("No session with network({0}) and owner({1})")]
+    NoSession(EvmNetwork, Address),
+}
+
+#[derive(Serialize)]
+pub struct ErrorBody {
+    code: u16,
+    message: String,
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> axum::response::Response {
+        let (status, message) = match &self {
+            AppError::NotFound(message) => (StatusCode::NOT_FOUND, message),
+            AppError::Internal(message) => (StatusCode::INTERNAL_SERVER_ERROR, message),
+            AppError::BadRequest(message) => (StatusCode::BAD_REQUEST, message),
+            AppError::ProviderIsNotDefined(_) => (StatusCode::NOT_FOUND, &self.to_string()),
+            AppError::NoSession(_, _) => (StatusCode::NOT_FOUND, &self.to_string()),
+        };
+
+        (
+            status,
+            Json(ErrorBody {
+                code: status.as_u16(),
+                message: message.clone(),
+            }),
+        )
+            .into_response()
+    }
+}
