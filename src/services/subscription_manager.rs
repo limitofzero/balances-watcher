@@ -4,11 +4,13 @@ use crate::services::errors::SubscriptionError;
 use alloy::primitives::Address;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, RwLock};
 
 struct SubWithCounter {
     pub clients: u32,
     pub subscription: Arc<Subscription>,
+    pub idle_since: Option<Instant>,
 }
 
 pub struct Subscription {
@@ -19,9 +21,10 @@ pub struct Subscription {
 }
 
 pub struct SubscriptionManager {
-    // TODO implement removing key after timeout
     subscriptions: RwLock<HashMap<SubscriptionKey, SubWithCounter>>,
 }
+
+const SESSION_TTL: Duration = Duration::from_secs(60);
 
 impl SubscriptionManager {
     pub fn new() -> Self {
@@ -65,6 +68,7 @@ impl SubscriptionManager {
         let sub_with_counter = SubWithCounter {
             clients: 0,
             subscription: Arc::clone(&subscription),
+            idle_since: Some(Instant::now()),
         };
 
         subs.insert(key, sub_with_counter);
@@ -91,6 +95,7 @@ impl SubscriptionManager {
                 .clients
                 .checked_add(1)
                 .ok_or(SubscriptionError::TooManyClients)?;
+            existing.idle_since = None;
             let receiver = existing.subscription.sender.subscribe();
             let is_first = existing.clients == 1;
             return Ok((receiver, is_first, Arc::clone(&existing.subscription)));
@@ -109,8 +114,7 @@ impl SubscriptionManager {
                 .checked_sub(1)
                 .ok_or(SubscriptionError::ThereIsNoClients)?;
             if existing.clients == 0 {
-                existing.subscription.cancel_token.cancel();
-                subs.remove(key);
+                existing.idle_since = Some(Instant::now());
                 return Ok(true);
             }
 
@@ -118,5 +122,39 @@ impl SubscriptionManager {
         }
 
         Err(SubscriptionError::ThereIsNoClients)
+    }
+
+    pub fn spawn_cleanup(self: Arc<Self>) {
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(SESSION_TTL);
+            loop {
+                interval.tick().await;
+                self.cleanup_subs().await;
+            }
+        });
+    }
+
+    async fn cleanup_subs(&self) {
+        let mut subs = self.subscriptions.write().await;
+
+        let now = Instant::now();
+
+        subs.retain(|key, sub| {
+            let should_remove = if sub.clients == 0 {
+                match sub.idle_since {
+                    Some(idle_since) => now.duration_since(idle_since) > SESSION_TTL,
+                    None => false,
+                }
+            } else {
+                false
+            };
+
+            if should_remove {
+                sub.subscription.cancel_token.cancel();
+                tracing::info!(?key, "cleanup session");
+            }
+
+            !should_remove
+        })
     }
 }

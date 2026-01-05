@@ -19,11 +19,14 @@ impl AppState {
         let providers = Self::build_rpc_roviders_map(&network_config.rpcs).await;
         let ws_providers = Self::build_ws_rpc_providers(&network_config.ws_rpcs).await;
 
+        let sub_manager = Arc::new(SubscriptionManager::new());
+        Arc::clone(&sub_manager).spawn_cleanup();
+
         Arc::new(Self {
             network_config: Arc::new(network_config),
             providers: Arc::new(providers),
             ws_providers: Arc::new(ws_providers),
-            sub_manager: Arc::new(SubscriptionManager::new()),
+            sub_manager: sub_manager,
         })
     }
 
