@@ -11,7 +11,6 @@ use crate::{
     app_error::AppError,
     app_state::AppState,
     domain::{EvmNetwork, SubscriptionKey},
-    services::tokens_from_list::get_tokens_from_list,
 };
 
 #[derive(Deserialize, Clone, Debug)]
@@ -34,9 +33,12 @@ pub async fn create_session(
 
     let key = SubscriptionKey { network, owner };
 
-    let mut tokens = get_tokens_from_list(&body.tokens_lists_urls, network)
+    let fetcher = Arc::clone(&state.token_list_fetcher);
+
+    let mut tokens = fetcher.get_tokens(&body.tokens_lists_urls, network)
         .await
         .map_err(|err| AppError::BadRequest(err.to_string()))?;
+    // TODO add token list limit check
     tokens.extend(body.custom_tokens);
 
     let _ = state.sub_manager.create_or_update(key, tokens).await;

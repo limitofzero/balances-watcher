@@ -1,9 +1,10 @@
+use alloy::primitives::Address;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Token {
-    pub address: String,
+    pub address: Address,
     pub name: String,
     pub decimals: u8,
     pub chain_id: u64,

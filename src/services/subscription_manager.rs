@@ -40,17 +40,8 @@ impl SubscriptionManager {
     ) -> Arc<Subscription> {
         let mut subs = self.subscriptions.write().await;
         if let Some(existing) = subs.get_mut(&key) {
-            let mut watched_tokens = existing.subscription.tokens.write().await;
-            let prev_count = watched_tokens.len();
-            watched_tokens.extend(tokens);
-
-            let new_count = watched_tokens.len();
-
-            tracing::info!(
-                "tokens were updated, prev count: {}, new count: {}",
-                prev_count,
-                new_count
-            );
+            let mut watchet_tokens = existing.subscription.tokens.write().await;
+            watchet_tokens.extend(tokens);
 
             return Arc::clone(&existing.subscription);
         }
