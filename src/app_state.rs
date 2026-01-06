@@ -1,6 +1,7 @@
 use crate::config::network_config::NetworkConfig;
 use crate::domain::EvmNetwork;
 use crate::services::subscription_manager::SubscriptionManager;
+use crate::services::token_list_fetcher::TokenListFetcher;
 use alloy::network::Ethereum;
 use alloy::providers::{DynProvider, Provider, ProviderBuilder, WsConnect};
 use std::collections::HashMap;
@@ -12,6 +13,7 @@ pub struct AppState {
     pub providers: Arc<HashMap<EvmNetwork, DynProvider<Ethereum>>>,
     pub ws_providers: Arc<HashMap<EvmNetwork, DynProvider>>,
     pub sub_manager: Arc<SubscriptionManager>,
+    pub token_list_fetcher: Arc<TokenListFetcher>,
 }
 
 impl AppState {
@@ -19,11 +21,17 @@ impl AppState {
         let providers = Self::build_rpc_roviders_map(&network_config.rpcs).await;
         let ws_providers = Self::build_ws_rpc_providers(&network_config.ws_rpcs).await;
 
+        let sub_manager = Arc::new(SubscriptionManager::new());
+        Arc::clone(&sub_manager).spawn_cleanup();
+
+        let token_list_fetcher = Arc::new(TokenListFetcher::new());
+
         Arc::new(Self {
             network_config: Arc::new(network_config),
             providers: Arc::new(providers),
             ws_providers: Arc::new(ws_providers),
-            sub_manager: Arc::new(SubscriptionManager::new()),
+            sub_manager: sub_manager,
+            token_list_fetcher,
         })
     }
 

@@ -20,3 +20,9 @@ pub enum SubscriptionError {
     #[error("There is no more clients")]
     ThereIsNoClients,
 }
+
+#[derive(Debug, Clone, Error)]
+pub enum FetcherError {
+    #[error("Unable to load token list, url: {0}, error: {1}")]
+    UnableToLoadList(String, String)
+}

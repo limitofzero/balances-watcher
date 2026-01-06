@@ -21,6 +21,9 @@ pub enum AppError {
 
     #[error("No session with network({0}) and owner({1})")]
     NoSession(EvmNetwork, Address),
+
+    #[error("Token limit exceeded")]
+    TokenLimitExceeded
 }
 
 #[derive(Serialize)]
@@ -37,6 +40,7 @@ impl IntoResponse for AppError {
             AppError::BadRequest(message) => (StatusCode::BAD_REQUEST, message),
             AppError::ProviderIsNotDefined(_) => (StatusCode::NOT_FOUND, &self.to_string()),
             AppError::NoSession(_, _) => (StatusCode::NOT_FOUND, &self.to_string()),
+            AppError::TokenLimitExceeded => (StatusCode::BAD_REQUEST, &self.to_string()),
         };
 
         (

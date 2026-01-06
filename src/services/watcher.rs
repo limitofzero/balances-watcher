@@ -48,7 +48,7 @@ impl Watcher {
         }
     }
 
-    pub async fn spawn_watchers(&self, interval_secs: u64) {
+    pub async fn spawn_watchers(&self, interval_secs: usize) {
         self.spawn_snapshot_updater(interval_secs).await;
 
         match self.spawn_erc20_transfer_listeners().await {
@@ -62,13 +62,13 @@ impl Watcher {
         }
     }
 
-    async fn spawn_snapshot_updater(&self, interval_secs: u64) {
+    async fn spawn_snapshot_updater(&self, interval_secs: usize) {
         let sub = Arc::clone(&self.sub);
         let ctx = Arc::clone(&self.ctx);
         let cancel = sub.cancel_token.clone();
 
         tokio::spawn(async move {
-            let mut interval = interval(Duration::from_secs(interval_secs));
+            let mut interval = interval(Duration::from_secs(interval_secs as u64));
 
             loop {
                 tokio::select! {

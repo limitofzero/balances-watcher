@@ -4,14 +4,15 @@ use alloy::primitives::Address;
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use super::constants::DEFAULT_SNAPSHOT_INTERVAL_SECS;
+use super::constants::{DEFAULT_SNAPSHOT_INTERVAL_SECS, DEFAULT_MAX_WATCHED_TOKENS_LIMIT};
 
 #[derive(Debug)]
 pub struct NetworkConfig {
     pub rpcs: HashMap<EvmNetwork, String>,
     pub ws_rpcs: HashMap<EvmNetwork, String>,
     pub multicall_address: Address,
-    pub snapshot_interval: u64,
+    pub snapshot_interval: usize,
+    pub max_watched_tokens_limit: usize,
 }
 
 impl NetworkConfig {
@@ -45,20 +46,29 @@ impl NetworkConfig {
             })
             .unwrap_or(Address::ZERO);
 
-        let snapshot_interval = args
+        let snapshot_interval: usize = args
             .snapshot_interval
-            .to_string()
-            .parse::<u64>()
+            .parse()
             .inspect_err(|err| {
                 tracing::warn!("Invalid snapshot interval value: {}", err);
             })
             .unwrap_or(DEFAULT_SNAPSHOT_INTERVAL_SECS);
+
+        let max_watched_tokens_limit: usize = args
+            .max_watched_tokens_limit
+            .parse()
+            .inspect_err(|err| {
+                tracing::warn!("Invalid MAX_WATCHED_TOKENS_LIMIT value: {}", err);
+            })
+            .unwrap_or(DEFAULT_MAX_WATCHED_TOKENS_LIMIT);
+            
 
         Self {
             rpcs,
             multicall_address,
             ws_rpcs,
             snapshot_interval,
+            max_watched_tokens_limit,
         }
     }
 
