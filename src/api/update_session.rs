@@ -8,9 +8,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::{
-    app_error::AppError,
-    app_state::AppState,
-    domain::{EvmNetwork, SubscriptionKey},
+    app_error::AppError, app_state::AppState, config::constants::DEFAULT_MAX_WATCHED_TOKENS_LIMIT, domain::{EvmNetwork, SubscriptionKey}
 };
 
 #[derive(Deserialize, Clone, Debug)]
@@ -44,13 +42,22 @@ pub async fn update_session(
 
     let token_list_fetcher = Arc::clone(&state.token_list_fetcher);
 
-    let mut tokens = token_list_fetcher.get_tokens(&body.tokens_lists_urls, network)
+    let mut tokens = token_list_fetcher
+        .get_tokens(&body.tokens_lists_urls, network)
         .await
         .map_err(|err| AppError::BadRequest(err.to_string()))?;
     tokens.extend(body.custom_tokens);
 
     let mut watched_tokens = sub.tokens.write().await;
     let prev_count = watched_tokens.len();
+
+    // count how many new unique tokens would be added
+    let new_unique = tokens.iter().filter(|t| !watched_tokens.contains(*t)).count();
+
+    if prev_count + new_unique > DEFAULT_MAX_WATCHED_TOKENS_LIMIT {
+        return Err(AppError::TokenLimitExceeded);
+    }
+
     watched_tokens.extend(tokens);
     let new_count = watched_tokens.len();
 
