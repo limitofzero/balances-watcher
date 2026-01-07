@@ -7,4 +7,4 @@ pub const BROADCAST_CHANNEL_CAPACITY: usize = 256;
 /// Default interval (seconds) between full balance snapshot updates
 pub const DEFAULT_SNAPSHOT_INTERVAL_SECS: usize = 60;
 
-pub const DEFAULT_MAX_WATCHED_TOKENS_LIMIT: usize = 10000;
+pub const DEFAULT_MAX_WATCHED_TOKENS_LIMIT: usize = 1000;

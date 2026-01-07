@@ -10,6 +10,8 @@ Real-time ERC20 token balance tracking service with SSE (Server-Sent Events) sup
 - Multi-chain support (Ethereum, Arbitrum, Sepolia)
 - Session-based token list management
 - Shared subscriptions for multiple clients
+- Token list caching with TTL (5 hours)
+- Token limit per session (max 1000 tokens)
 
 ## API Endpoints
 
@@ -162,6 +164,14 @@ docker-compose logs -f
 | Arbitrum One | 42161 |
 | Sepolia Testnet | 11155111 |
 
+## Limits
+
+| Limit | Value | Description |
+|-------|-------|-------------|
+| Max tokens per session | 10,000 | Maximum number of tokens that can be watched per session |
+| Token list cache TTL | 5 hours | Token lists are cached to reduce HTTP requests |
+| Session idle TTL | 60 seconds | Sessions with no active SSE clients are cleaned up |
+
 ## Project Structure
 
 ```
@@ -196,8 +206,8 @@ src/
 ### High Priority
 - [ ] **Health check endpoint** - `/health` for load balancers and monitoring
 - [ ] **Prometheus metrics** - Track subscriptions, RPC latency, WebSocket reconnections
-- [ ] **Rate limiting** - Limit sessions per IP and tokens per session
-- [ ] **Session expiry/cleanup** - TTL for idle sessions, background cleanup task
+- [x] **Token limit per session** - Max 1000 tokens per session with validation
+- [x] **Session expiry/cleanup** - TTL for idle sessions, background cleanup task
 - [ ] **Graceful shutdown** - Cancel watchers and close connections on SIGTERM
 
 ### Medium Priority
@@ -208,7 +218,7 @@ src/
 
 ### Features
 - [ ] **WETH wrap/unwrap listening** - Handle Deposit/Withdrawal events
-- [ ] **Token lists caching** - Cache with TTL to reduce HTTP requests
+- [x] **Token lists caching** - Cache with TTL (5h) to reduce HTTP requests
 - [ ] **CoW Protocol order events** - Listen for ETH order settlements
 - [ ] **ETH transactions listening** - Monitor native balance changes
 - [ ] **Reorgs handling** - Detect and handle chain reorganizations
