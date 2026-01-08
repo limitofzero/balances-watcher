@@ -48,5 +48,12 @@ pub async fn create_session(
 
     let _ = state.sub_manager.create_or_update(key, tokens).await;
 
+    tracing::warn!(
+        "session for wallet:network {}:{} was created, watched tokens count is {}",
+        owner,
+        network,
+        combined.len(),
+    );
+
     Ok(())
 }

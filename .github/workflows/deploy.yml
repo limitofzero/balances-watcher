@@ -27,6 +27,7 @@ jobs:
         env:
           RUST_LOG: ${{ vars.RUST_LOG }}
           HTTP_BIND: ${{ vars.HTTP_BIND }}
+          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
 
       - name: Copy manifests to server
         uses: appleboy/scp-action@v0.1.7

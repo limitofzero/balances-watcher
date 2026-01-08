@@ -55,6 +55,7 @@ pub async fn update_session(
     let new_unique = tokens.iter().filter(|t| !watched_tokens.contains(*t)).count();
 
     if prev_count + new_unique > DEFAULT_MAX_WATCHED_TOKENS_LIMIT {
+        tracing::error!("limit of watched tokens was exceeded: {}", prev_count + new_unique );
         return Err(AppError::TokenLimitExceeded);
     }
 
@@ -62,7 +63,7 @@ pub async fn update_session(
     let new_count = watched_tokens.len();
 
     tracing::info!(
-        "tokens were updated, prev count: {}, new count: {}",
+        "watched token list was updated, prev watched token count: {}, new count: {}",
         prev_count,
         new_count
     );

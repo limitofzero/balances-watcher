@@ -28,3 +28,5 @@ spec:
               value: "${RUST_LOG}"
             - name: HTTP_BIND
               value: "${HTTP_BIND}"
+            - name: ALLOWED_ORIGINS
+              value: "${ALLOWED_ORIGINS}"
