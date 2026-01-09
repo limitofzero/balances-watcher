@@ -3,7 +3,10 @@ name: Formatter Check
 on:
     pull_request:
         branches:
-          - main
+          - master
+          - develop
+          - '*'
+
 
 jobs:
     check-format:
