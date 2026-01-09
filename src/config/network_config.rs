@@ -4,7 +4,7 @@ use alloy::primitives::Address;
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use super::constants::{DEFAULT_SNAPSHOT_INTERVAL_SECS, DEFAULT_MAX_WATCHED_TOKENS_LIMIT};
+use super::constants::{DEFAULT_MAX_WATCHED_TOKENS_LIMIT, DEFAULT_SNAPSHOT_INTERVAL_SECS};
 
 #[derive(Debug)]
 pub struct NetworkConfig {
@@ -61,7 +61,6 @@ impl NetworkConfig {
                 tracing::warn!("Invalid MAX_WATCHED_TOKENS_LIMIT value: {}", err);
             })
             .unwrap_or(DEFAULT_MAX_WATCHED_TOKENS_LIMIT);
-            
 
         Self {
             rpcs,

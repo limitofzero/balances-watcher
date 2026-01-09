@@ -21,5 +21,5 @@ pub enum SubscriptionError {
 #[derive(Debug, Clone, Error)]
 pub enum FetcherError {
     #[error("Unable to load token list, url: {0}, error: {1}")]
-    UnableToLoadList(String, String)
+    UnableToLoadList(String, String),
 }

@@ -1,4 +1,4 @@
-use crate::domain::{EvmNetwork};
+use crate::domain::EvmNetwork;
 use crate::evm::{erc20::ERC20, multicall3::Multicall3};
 use crate::services::errors::ServiceError;
 use alloy::primitives::{Address, U256};

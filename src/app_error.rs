@@ -20,7 +20,7 @@ pub enum AppError {
     NoSession(EvmNetwork, Address),
 
     #[error("Token limit exceeded")]
-    TokenLimitExceeded
+    TokenLimitExceeded,
 }
 
 #[derive(Serialize)]

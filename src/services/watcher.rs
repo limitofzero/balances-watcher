@@ -62,7 +62,7 @@ impl Watcher {
         }
     }
 
-    // request balances via multicall every interval_secs to have an actual 
+    // request balances via multicall every interval_secs to have an actual
     async fn spawn_snapshot_updater(&self, interval_secs: usize) {
         let sub = Arc::clone(&self.sub);
         let ctx = Arc::clone(&self.ctx);

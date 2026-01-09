@@ -38,7 +38,7 @@ pub async fn get_balances(
         Some(provider) => provider.clone(),
         None => {
             return Err(StreamError {
-            code: 404,
+                code: 404,
                 message: format!("No provider for network {}", network),
             })
         }
@@ -76,9 +76,9 @@ pub async fn get_balances(
 
     if is_first {
         let ctx = WatcherContext {
-        provider,
-        owner,
-        network,
+            provider,
+            owner,
+            network,
             multicall3: *multicall3,
             ws_provider,
         };
@@ -91,7 +91,7 @@ pub async fn get_balances(
 
         let event = if balance_snapshot.is_empty() {
             BalanceEvent::Error {
-            code: 500,
+                code: 500,
                 message: format!("Empty snapshot for {network} for {owner}"),
             }
         } else {
@@ -132,9 +132,9 @@ pub async fn get_balances(
                     "broadcast stream error",
                 );
                 None
-                }
             }
-        });
+        }
+    });
 
     let cleanup_stream =
         cleanup_stream::CleanupStream::new(sse_stream, manager_for_cleanup, key_for_cleanup);
