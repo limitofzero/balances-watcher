@@ -4,9 +4,6 @@ use thiserror::Error;
 pub enum ServiceError {
     #[error("Error getting balances from multicall")]
     BalancesMultiCallError(String),
-
-    #[error("Unable to load list")]
-    UnableToLoadList(String),
 }
 
 #[derive(Debug, Clone, Error)]
@@ -24,5 +21,5 @@ pub enum SubscriptionError {
 #[derive(Debug, Clone, Error)]
 pub enum FetcherError {
     #[error("Unable to load token list, url: {0}, error: {1}")]
-    UnableToLoadList(String, String)
+    UnableToLoadList(String, String),
 }

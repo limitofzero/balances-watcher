@@ -1,11 +1,18 @@
-use std::{collections::{HashMap, HashSet}, time::{Duration, Instant}};
+use std::{
+    collections::{HashMap, HashSet},
+    time::{Duration, Instant},
+};
 
-use alloy::{primitives::{Address}, transports::http::Client};
-use futures::{StreamExt, stream};
+use alloy::{primitives::Address, transports::http::Client};
+use futures::{stream, StreamExt};
 use serde::Deserialize;
 use tokio::sync::RwLock;
 
-use crate::{config::constants::TOKEN_FETCH_CONCURRENCY, domain::{EvmNetwork, Token}, services::errors::{FetcherError}};
+use crate::{
+    config::constants::TOKEN_FETCH_CONCURRENCY,
+    domain::{EvmNetwork, Token},
+    services::errors::FetcherError,
+};
 
 const CACHE_TTL: Duration = Duration::from_secs(3600 * 5); // 5 hours
 
@@ -28,10 +35,19 @@ struct ApiResponse {
 
 impl TokenListFetcher {
     pub fn new() -> Self {
-        Self { cache: RwLock::new(HashMap::new()), client: Client::new(), ttl: CACHE_TTL, in_flight: RwLock::new(HashSet::new()) }
+        Self {
+            cache: RwLock::new(HashMap::new()),
+            client: Client::new(),
+            ttl: CACHE_TTL,
+            in_flight: RwLock::new(HashSet::new()),
+        }
     }
 
-    pub async fn get_tokens(&self, urls: &[String], network: EvmNetwork) -> Result<HashSet<Address>, FetcherError> {
+    pub async fn get_tokens(
+        &self,
+        urls: &[String],
+        network: EvmNetwork,
+    ) -> Result<HashSet<Address>, FetcherError> {
         let uncached_urls = self.get_uncached_urls(urls).await;
 
         // fetch uncached lists
@@ -60,18 +76,19 @@ impl TokenListFetcher {
     }
 
     async fn fetch_and_cache(&self, urls: &[String]) -> Result<(), FetcherError> {
-        let result: Vec<(String, Result<ApiResponse, FetcherError>)> = stream::iter(urls.iter().cloned())
-            .map(move |url| {
-                let client = self.client.clone();
-                async move {
-                    let response = Self::fetch_list(&client, &url).await;
-                    (url, response)
-                }
-            })
-            .buffer_unordered(TOKEN_FETCH_CONCURRENCY)
-            .collect()
-            .await;
-            
+        let result: Vec<(String, Result<ApiResponse, FetcherError>)> =
+            stream::iter(urls.iter().cloned())
+                .map(move |url| {
+                    let client = self.client.clone();
+                    async move {
+                        let response = Self::fetch_list(&client, &url).await;
+                        (url, response)
+                    }
+                })
+                .buffer_unordered(TOKEN_FETCH_CONCURRENCY)
+                .collect()
+                .await;
+
         for (_, response) in &result {
             if let Err(err) = response {
                 return Err(err.clone());
@@ -101,10 +118,13 @@ impl TokenListFetcher {
 
         let mut cache = self.cache.write().await;
         for (url, result) in mapped_by_url {
-            cache.insert(url, CachedTokenList {
-                fetched_at: Instant::now(),
-                list: result
-            });
+            cache.insert(
+                url,
+                CachedTokenList {
+                    fetched_at: Instant::now(),
+                    list: result,
+                },
+            );
         }
 
         Ok(())
@@ -115,19 +135,15 @@ impl TokenListFetcher {
             .get(url)
             .send()
             .await
-            .map_err(|err| {
-                FetcherError::UnableToLoadList(url.clone(), err.to_string())
-            })?
+            .map_err(|err| FetcherError::UnableToLoadList(url.clone(), err.to_string()))?
             .json()
             .await
-            .map_err(|err| {
-                FetcherError::UnableToLoadList(url.clone(), err.to_string())
-            })
+            .map_err(|err| FetcherError::UnableToLoadList(url.clone(), err.to_string()))
     }
 
     async fn collect_from_cache(&self, urls: &[String], network: EvmNetwork) -> HashSet<Address> {
         let cached_lists = self.cache.read().await;
-        
+
         let mut result: HashSet<Address> = HashSet::new();
         for url in urls {
             if let Some(cached) = cached_lists.get(url) {
@@ -145,19 +161,18 @@ impl TokenListFetcher {
         let in_flight = self.in_flight.read().await;
         let now = Instant::now();
 
-        urls.iter().filter(|url| {
-            if in_flight.contains(*url) {
-                return false;
-            }
+        urls.iter()
+            .filter(|url| {
+                if in_flight.contains(*url) {
+                    return false;
+                }
 
-            match cached_lists.get(*url) {
-                Some(cached_list) => {
-                    now.duration_since(cached_list.fetched_at) >= self.ttl
-                },
-                None => true,
-            }
-        })
-        .cloned()
-        .collect()
+                match cached_lists.get(*url) {
+                    Some(cached_list) => now.duration_since(cached_list.fetched_at) >= self.ttl,
+                    None => true,
+                }
+            })
+            .cloned()
+            .collect()
     }
 }

@@ -7,9 +7,6 @@ use crate::domain::EvmNetwork;
 
 #[derive(Error, Debug)]
 pub enum AppError {
-    #[error("Not found: {0}")]
-    NotFound(String),
-
     #[error("Internal error: {0}")]
     Internal(String),
 
@@ -23,7 +20,7 @@ pub enum AppError {
     NoSession(EvmNetwork, Address),
 
     #[error("Token limit exceeded")]
-    TokenLimitExceeded
+    TokenLimitExceeded,
 }
 
 #[derive(Serialize)]
@@ -35,7 +32,6 @@ pub struct ErrorBody {
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         let (status, message) = match &self {
-            AppError::NotFound(message) => (StatusCode::NOT_FOUND, message),
             AppError::Internal(message) => (StatusCode::INTERNAL_SERVER_ERROR, message),
             AppError::BadRequest(message) => (StatusCode::BAD_REQUEST, message),
             AppError::ProviderIsNotDefined(_) => (StatusCode::NOT_FOUND, &self.to_string()),

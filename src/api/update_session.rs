@@ -8,7 +8,9 @@ use axum::{
 use serde::Deserialize;
 
 use crate::{
-    app_error::AppError, app_state::AppState, config::constants::DEFAULT_MAX_WATCHED_TOKENS_LIMIT, domain::{EvmNetwork, SubscriptionKey}
+    app_error::AppError,
+    app_state::AppState,
+    domain::{EvmNetwork, SubscriptionKey},
 };
 
 #[derive(Deserialize, Clone, Debug)]
@@ -52,10 +54,16 @@ pub async fn update_session(
     let prev_count = watched_tokens.len();
 
     // count how many new unique tokens would be added
-    let new_unique = tokens.iter().filter(|t| !watched_tokens.contains(*t)).count();
+    let new_unique = tokens
+        .iter()
+        .filter(|t| !watched_tokens.contains(*t))
+        .count();
 
-    if prev_count + new_unique > DEFAULT_MAX_WATCHED_TOKENS_LIMIT {
-        tracing::error!("limit of watched tokens was exceeded: {}", prev_count + new_unique );
+    if prev_count + new_unique > state.network_config.max_watched_tokens_limit {
+        tracing::error!(
+            "limit of watched tokens was exceeded: {}",
+            prev_count + new_unique
+        );
         return Err(AppError::TokenLimitExceeded);
     }
 

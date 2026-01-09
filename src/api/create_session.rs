@@ -8,7 +8,10 @@ use axum::{
 use serde::Deserialize;
 
 use crate::{
-    app_error::AppError, app_state::AppState, config::constants::DEFAULT_MAX_WATCHED_TOKENS_LIMIT, domain::{EvmNetwork, SubscriptionKey}
+    app_error::AppError,
+    app_state::AppState,
+    config::constants::DEFAULT_MAX_WATCHED_TOKENS_LIMIT,
+    domain::{EvmNetwork, SubscriptionKey},
 };
 
 #[derive(Deserialize, Clone, Debug)]
@@ -26,14 +29,17 @@ pub async fn create_session(
     Json(body): Json<CreateSessionRequest>,
 ) -> Result<(), AppError> {
     if body.tokens_lists_urls.is_empty() {
-        return Err(AppError::BadRequest("tokens_lists_urls should not be empty".into()));
+        return Err(AppError::BadRequest(
+            "tokens_lists_urls should not be empty".into(),
+        ));
     }
 
     let key = SubscriptionKey { network, owner };
 
     let fetcher = Arc::clone(&state.token_list_fetcher);
 
-    let mut tokens = fetcher.get_tokens(&body.tokens_lists_urls, network)
+    let mut tokens = fetcher
+        .get_tokens(&body.tokens_lists_urls, network)
         .await
         .map_err(|err| AppError::BadRequest(err.to_string()))?;
 
