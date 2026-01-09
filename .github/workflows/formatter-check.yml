@@ -1,25 +1,26 @@
-name: Formatter Check
+name: Tests and Format Check
 
 on:
+    push:
     pull_request:
-        branches:
-          - master
-          - develop
-          - '*'
-
 
 jobs:
+    test:
+        name: Cargo test
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v5
+            - uses: actions-rust-lang/setup-rust-toolchain@v1
+            - run: cargo test --all-features
+              
     check-format:
+        name: Rustfmt check
         runs-on: ubuntu-latest
 
         steps:
-        - name: Checkout code
-          uses: actions/checkout@v5
-        
-        - name: Set up Rust
-          uses: actions-rust-lang/setup-rust-toolchain@v1
-          with:
-            rust-component: rustfmt
-
-        - name: Rustfmt check
-          run: actions-rust-lang/rustfmt@v1
+            - uses: actions/checkout@v5
+            - uses: actions-rust-lang/setup-rust-toolchain@v1
+              with:
+                components: rustfmt
+            - name: Rustfmt Check
+              uses: actions-rust-lang/rustfmt@v1
