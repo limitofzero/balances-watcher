@@ -62,6 +62,7 @@ impl Watcher {
         }
     }
 
+    // request balances via multicall every interval_secs to have an actual 
     async fn spawn_snapshot_updater(&self, interval_secs: usize) {
         let sub = Arc::clone(&self.sub);
         let ctx = Arc::clone(&self.ctx);
@@ -111,7 +112,7 @@ impl Watcher {
         };
 
         let _ = sub.sender.send(event).inspect_err(|err| {
-            tracing::error!("error when send update_snapshot event: {err}");
+            tracing::info!("unable to send update_snapshot event to clients: {err}");
         });
     }
 
@@ -167,6 +168,8 @@ impl Watcher {
                         let token_balance = Self::parse_transfer_and_get_balance(Arc::clone(&provider), owner, network, &log).await;
                         let event = match token_balance {
                             Some(token_balance) => {
+                                // parse value from balance_of and update snapshot
+                                // then send update_balance event with new balance for token to clients
                                 let balance_as_string = token_balance.balance.to_string();
                                 let mut balance_snapshot = sub.balances_snapshot.write().await;
                                 balance_snapshot.insert(token_balance.address, balance_as_string.clone());
@@ -181,9 +184,9 @@ impl Watcher {
                         };
 
                         let _ = sub.sender.send(event).inspect_err(|err| {
-                            tracing::error!(
+                            tracing::info!(
                                 error = %err,
-                                "error when send update_snapshot event: {err}"
+                                "unable to send update_balance event: {err}"
                             );
                         });
                     }
