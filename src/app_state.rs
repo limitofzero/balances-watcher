@@ -30,7 +30,7 @@ impl AppState {
             network_config: Arc::new(network_config),
             providers: Arc::new(providers),
             ws_providers: Arc::new(ws_providers),
-            sub_manager: sub_manager,
+            sub_manager,
             token_list_fetcher,
         })
     }
