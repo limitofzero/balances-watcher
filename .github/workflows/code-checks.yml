@@ -16,14 +16,26 @@ jobs:
     audit:
         name: Cargo audit
         runs-on: ubuntu-latest
+        permissions:
+          checks: write
+          contents: read
+
+        steps:
+            - uses: actions/checkout@v5
+            - uses: rustsec/audit-check@v2
+              with:
+                token: ${{ secrets.GITHUB_TOKEN }}
+
+    clippy:
+        name: Clippy
+        runs-on: ubuntu-latest
 
         steps:
             - uses: actions/checkout@v5
             - uses: actions-rust-lang/setup-rust-toolchain@v1
-            - name: Install cargo-audit
-              run: cargo install cargo-audit
-            - name: Run cargo audit
-              run: cargo audit
+              with:
+                components: clippy
+            - run: cargo clippy --all-features --all-targets -- -D warnings
               
     check-format:
         name: Rustfmt check
@@ -34,5 +46,4 @@ jobs:
             - uses: actions-rust-lang/setup-rust-toolchain@v1
               with:
                 components: rustfmt
-            - name: Rustfmt Check
-              uses: actions-rust-lang/rustfmt@v1
+            - uses: actions-rust-lang/rustfmt@v1
