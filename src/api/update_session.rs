@@ -28,7 +28,7 @@ pub async fn update_session(
     State(state): State<Arc<AppState>>,
     Json(body): Json<UpdateSessionRequest>,
 ) -> Result<(), AppError> {
-    if body.custom_tokens.len() == 0 && body.tokens_lists_urls.len() == 0 {
+    if body.custom_tokens.is_empty() && body.tokens_lists_urls.len() == 0 {
         return Err(AppError::BadRequest(
             "tokens_lists_urls && custom_tokens are empty".to_string(),
         ));
