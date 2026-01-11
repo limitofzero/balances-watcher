@@ -35,19 +35,11 @@ pub struct Args {
     pub max_watched_tokens_limit: String,
 
     #[arg(long, env = "ALLOWED_ORIGINS", default_value = "")]
-    allowed_origins_from_env: String,
+    pub allowed_origins: String,
 }
 
 impl Args {
     pub fn from_env() -> Self {
         Self::parse()
-    }
-
-    pub fn allowed_origins(&self) -> Vec<String> {
-        self.allowed_origins_from_env
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect()
     }
 }

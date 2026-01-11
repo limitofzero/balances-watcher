@@ -30,8 +30,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     println!("eth rpc url is {eth_rpc}");
 
+    let allowed_origins = network_cfg.allowed_origins.clone();
     let app_state = AppState::build(network_cfg).await;
-    let app = create_router(app_state, cfg.allowed_origins());
+    let app = create_router(app_state, allowed_origins);
 
     let address: SocketAddr = cfg.bind.parse()?;
     println!("Listening to http://{}", address);
