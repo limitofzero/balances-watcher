@@ -24,6 +24,7 @@ jobs:
           envsubst < .github/k8s/deployment.yaml > ./k8s-output/deployment.yaml
           envsubst < .github/k8s/service.yaml > ./k8s-output/service.yaml
           envsubst < .github/k8s/ingress.yaml > ./k8s-output/ingress.yaml
+          cp .github/k8s/cluster-issuer.yaml ./k8s-output/cluster-issuer.yaml
         env:
           RUST_LOG: ${{ vars.RUST_LOG }}
           HTTP_BIND: ${{ vars.HTTP_BIND }}
@@ -47,6 +48,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             export KUBECONFIG=/home/limitofzero/.kube/config
+            kubectl apply -f /tmp/k8s-manifests/cluster-issuer.yaml
             kubectl apply -f /tmp/k8s-manifests/deployment.yaml
             kubectl apply -f /tmp/k8s-manifests/service.yaml
             kubectl apply -f /tmp/k8s-manifests/ingress.yaml 

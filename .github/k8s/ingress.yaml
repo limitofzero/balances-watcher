@@ -2,9 +2,17 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: balances-watcher
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
 spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - balance-watcher.info
+      secretName: balances-watcher-tls
   rules:
-    - http:
+    - host: balance-watcher.info
+      http:
         paths:
           - path: /
             pathType: Prefix
