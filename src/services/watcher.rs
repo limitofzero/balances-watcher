@@ -83,18 +83,18 @@ impl Watcher {
     }
 
     async fn fetch_balances_and_broadcast(ctx: Arc<WatcherContext>, sub: Arc<Subscription>) {
-        let tokens = sub.tokens.read().await;
+        let result = {
+            let tokens = sub.tokens.read().await;
 
-        let result = balances::get_balances(
-            &tokens,
-            &ctx.provider,
-            ctx.owner,
-            ctx.network,
-            ctx.multicall3,
-        )
-        .await;
-
-        drop(tokens);
+            balances::get_balances(
+                &tokens,
+                &ctx.provider,
+                ctx.owner,
+                ctx.network,
+                ctx.multicall3,
+            )
+            .await
+        };
 
         let event = match result {
             Ok(balances) => {
