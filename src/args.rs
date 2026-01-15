@@ -36,6 +36,9 @@ pub struct Args {
 
     #[arg(long, env = "ALLOWED_ORIGINS", default_value = "")]
     pub allowed_origins: String,
+
+    #[arg(long, env = "WETH_CONTRACT_ADDRESSES", default_value = "")]
+    pub weth_contract_addresses: String,
 }
 
 impl Args {

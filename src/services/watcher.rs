@@ -12,7 +12,7 @@ use tokio::time::interval;
 
 use crate::{
     domain::{BalanceEvent, EvmNetwork},
-    evm::erc20::ERC20,
+    evm::{erc20::ERC20, wrapped::WrappedToken},
     services::{balances, subscription_manager::Subscription},
 };
 
@@ -23,8 +23,11 @@ struct TokenBalance {
 
 #[derive(Error, Debug, Clone)]
 pub enum WatcherError {
-    #[error("ws rpc subscription wasnt connected")]
-    WsProviderSubscribeError(EvmNetwork),
+    #[error("ws rpc subscription on erc20 TRANSFER for network({0}) event connection error for owner: {1}")]
+    Erc20WsSubscriptionError(EvmNetwork, Address),
+
+    #[error("ws rpc subscription on Weth({0}:{1}) DEPOSIT/TRANFSER event connection error for owner: {2}")]
+    WethEventsSubscriptionError(EvmNetwork, Address, Address),
 }
 
 pub struct WatcherContext {
@@ -33,6 +36,7 @@ pub struct WatcherContext {
     pub network: EvmNetwork,
     pub multicall3: Address,
     pub ws_provider: DynProvider,
+    pub weth_address: Address,
 }
 
 pub struct Watcher {
@@ -57,6 +61,17 @@ impl Watcher {
                 tracing::error!(
                     error = %err,
                     "error when spawn erc20 listeners"
+                );
+            }
+        }
+
+        match self.spawn_wrapped_events_listener().await {
+            Ok(()) => {}
+            Err(err) => {
+                tracing::error!(
+                    error = %err,
+                    "error when spawn weth listeners for {}",
+                    self.ctx.weth_address,
                 );
             }
         }
@@ -116,6 +131,85 @@ impl Watcher {
         });
     }
 
+    /**
+     * Listen Deposit/Withdrawal events
+     *
+     * Need to sync wrap/unwrap txs to handle wrapped token balance
+     */
+    // TODO
+    async fn spawn_wrapped_events_listener(&self) -> Result<(), WatcherError> {
+        let ctx = Arc::clone(&self.ctx);
+
+        let event_signatures = vec![
+            WrappedToken::Deposit::SIGNATURE_HASH,
+            WrappedToken::Withdrawal::SIGNATURE_HASH,
+        ];
+        let filter = Filter::new()
+            .address(ctx.weth_address)
+            .event_signature(event_signatures);
+
+        let mut stream = self
+            .ctx
+            .ws_provider
+            .clone()
+            .subscribe_logs(&filter)
+            .await
+            .map_err(|err| {
+                tracing::error!(
+                    error = %err,
+                    "error to subscribe on Weth({}:{}) TRANSFER/DEPOSIT events for owner: {}",
+                    ctx.network,
+                    ctx.weth_address,
+                    ctx.owner,
+                );
+
+                WatcherError::WethEventsSubscriptionError(ctx.network, ctx.weth_address, ctx.owner)
+            })?
+            .into_stream();
+
+        let sub = Arc::clone(&self.sub);
+        let cancel = sub.cancel_token.clone();
+
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = cancel.cancelled() => {
+                        break;
+                    },
+                    Some(log) = stream.next() => {
+                        match log.topic0() {
+                            Some(hash) if *hash == WrappedToken::Deposit::SIGNATURE_HASH => {
+                                match log.log_decode::<WrappedToken::Deposit>() {
+                                    Ok(decoded) => {
+                                        let data = decoded.inner.data;
+                                        tracing::info!("catch Deposit event, receiver: {}, value: {}", data.dst, data.wad);
+                                    },
+                                    // TODO handle error
+                                    Err(_) => {},
+                                };
+
+                            },
+                            Some(hash) if *hash == WrappedToken::Withdrawal::SIGNATURE_HASH => {
+                                match log.log_decode::<WrappedToken::Withdrawal>() {
+                                    Ok(decoded) => {
+                                        let data = decoded.inner.data;
+                                        tracing::info!("catch Withdrawal event, receiver: {}, value: {}", data.src, data.wad);
+                                    },
+                                    Err(_) => {},
+                                }
+                            }
+                            _ => {}
+                            // TODO handle None
+                        };
+                    }
+                    // TODO: handle None - disconnect
+                }
+            }
+        });
+
+        Ok(())
+    }
+
     async fn spawn_erc20_transfer_listeners(&self) -> Result<(), WatcherError> {
         let ctx = Arc::clone(&self.ctx);
         let base = Filter::new().event_signature(ERC20::Transfer::SIGNATURE_HASH);
@@ -134,6 +228,7 @@ impl Watcher {
     ) -> Result<(), WatcherError> {
         let ctx = Arc::clone(&self.ctx);
 
+        // TODO check limit for address list - maybe it can be better to use filter by addresses than general one
         let mut stream = self
             .ctx
             .ws_provider
@@ -143,12 +238,12 @@ impl Watcher {
             .map_err(|err| {
                 tracing::error!(
                     error = %err,
-                    "error to subscribe to ws provider for {} for network {}",
+                    "error to subscribe on erc20 transfer event {} for network {}",
                     ctx.owner,
                     ctx.network,
                 );
 
-                WatcherError::WsProviderSubscribeError(ctx.network)
+                WatcherError::Erc20WsSubscriptionError(ctx.network, ctx.owner)
             })?
             .into_stream();
 
@@ -164,7 +259,9 @@ impl Watcher {
                     _ = cancel.cancelled() => {
                         break;
                     },
+                    // TODO handle None case / reconnect
                     Some(log) = stream.next() => {
+                        // TODO check address in map before request
                         let token_balance = Self::parse_transfer_and_get_balance(Arc::clone(&provider), owner, network, &log).await;
                         let event = match token_balance {
                             Some(token_balance) => {

@@ -10,6 +10,7 @@ use axum::{
 };
 use futures::{Stream, StreamExt};
 use serde::Serialize;
+use std::fmt::format;
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -74,6 +75,18 @@ pub async fn get_balances(
                 message: e.to_string(),
             })?;
 
+    let weth_address = state
+        .network_config
+        .weth_addresses
+        .get(&network)
+        .ok_or_else(|| {
+            tracing::error!("there is no weth address for network {}", network);
+            return StreamError {
+                code: 500,
+                message: format!("WETH address for {} network is not defined", network),
+            };
+        })?;
+
     if is_first {
         let ctx = WatcherContext {
             provider,
@@ -81,6 +94,7 @@ pub async fn get_balances(
             network,
             multicall3: *multicall3,
             ws_provider,
+            weth_address: *weth_address,
         };
 
         Watcher::new(ctx, Arc::clone(&subscription))
