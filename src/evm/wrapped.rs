@@ -8,6 +8,6 @@ sol! {
     event Deposit(address indexed dst, uint256 wad);
 
     #[derive(Debug)]
-    event Withdrawal(address indexed src, uint wad);
+    event Withdrawal(address indexed src, uint256 wad);
    }
 }

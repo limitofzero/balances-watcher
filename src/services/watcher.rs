@@ -1,7 +1,11 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 
+use crate::evm::erc20::ERC20;
 use alloy::{
-    primitives::{Address, U256},
+    primitives::{map::HashMap, Address, U256},
     providers::{DynProvider, Provider},
     rpc::types::{Filter, Log, Topic},
     sol_types::SolEvent,
@@ -12,13 +16,18 @@ use tokio::time::interval;
 
 use crate::{
     domain::{BalanceEvent, EvmNetwork},
-    evm::{erc20::ERC20, wrapped::WrappedToken},
+    evm::wrapped::WrappedToken,
     services::{balances, subscription_manager::Subscription},
 };
 
 struct TokenBalance {
     address: Address,
     balance: U256,
+}
+
+enum WethEvents {
+    Deposit(U256),
+    Withdrawal(U256),
 }
 
 #[derive(Error, Debug, Clone)]
@@ -28,6 +37,35 @@ pub enum WatcherError {
 
     #[error("ws rpc subscription on Weth({0}:{1}) DEPOSIT/TRANFSER event connection error for owner: {2}")]
     WethEventsSubscriptionError(EvmNetwork, Address, Address),
+}
+
+#[derive(Error, Debug, Clone)]
+pub enum ParseWeb3LogsError {
+    #[error("parse weth {0} log error, details: {1}")]
+    ParseWethLogError(String, String),
+
+    #[error("log.topic0() is none")]
+    Topic0IsNone,
+
+    #[error("event HASH_SIGNATURE is not expected")]
+    UnexpectedHashSignature,
+}
+
+#[derive(Error, Debug, Clone)]
+pub enum UpdateBalanceError {
+    #[error("unable to parse balance from snapshot string: token: {0}, value: {1}")]
+    UnableToParseBalanceString(Address, String),
+
+    #[error("overflow happened: token {token}, operation: {operation}, initial_value: {initial_value}, operand: {operand}")]
+    OverflowError {
+        token: Address,
+        operation: char,
+        initial_value: U256,
+        operand: U256,
+    },
+
+    #[error("attempt to sub from zero balance: token: {0}, value to sub: {1}")]
+    AttemptToSubFromZero(Address, U256),
 }
 
 pub struct WatcherContext {
@@ -167,7 +205,7 @@ impl Watcher {
             })?
             .into_stream();
 
-        let sub = Arc::clone(&self.sub);
+        let sub: Arc<Subscription> = Arc::clone(&self.sub);
         let cancel = sub.cancel_token.clone();
 
         tokio::spawn(async move {
@@ -177,30 +215,32 @@ impl Watcher {
                         break;
                     },
                     Some(log) = stream.next() => {
-                        match log.topic0() {
-                            Some(hash) if *hash == WrappedToken::Deposit::SIGNATURE_HASH => {
-                                match log.log_decode::<WrappedToken::Deposit>() {
-                                    Ok(decoded) => {
-                                        let data = decoded.inner.data;
-                                        tracing::info!("catch Deposit event, receiver: {}, value: {}", data.dst, data.wad);
-                                    },
-                                    // TODO handle error
-                                    Err(_) => {},
-                                };
+                        let event = match Self::parse_weth_logs(&log) {
+                            Ok(WethEvents::Deposit(value)) => {
 
+
+                                BalanceEvent::TokenBalanceUpdated {
+                                    address: ctx.weth_address,
+                                    // TODO update balance properly
+                                    balance: value.to_string(),
+                                }
                             },
-                            Some(hash) if *hash == WrappedToken::Withdrawal::SIGNATURE_HASH => {
-                                match log.log_decode::<WrappedToken::Withdrawal>() {
-                                    Ok(decoded) => {
-                                        let data = decoded.inner.data;
-                                        tracing::info!("catch Withdrawal event, receiver: {}, value: {}", data.src, data.wad);
-                                    },
-                                    Err(_) => {},
+                            Ok(WethEvents::Withdrawal(value)) => {
+                                BalanceEvent::TokenBalanceUpdated {
+                                    address: ctx.weth_address,
+                                    // TODO update balance properly
+                                    balance: value.to_string(),
+                                }
+                            },
+                            Err(err) => {
+                                BalanceEvent::Error {
+                                    code: 500,
+                                    message: err.to_string(),
                                 }
                             }
-                            _ => {}
-                            // TODO handle None
                         };
+
+                        //
                     }
                     // TODO: handle None - disconnect
                 }
@@ -208,6 +248,114 @@ impl Watcher {
         });
 
         Ok(())
+    }
+
+    async fn update_weth_balance_in_snapshot(
+        &self,
+        sub: Arc<Subscription>,
+        token: Address,
+        event_data: WethEvents,
+    ) -> Result<U256, UpdateBalanceError> {
+        // cases that need to handle
+        // * there is no balance in the snapshot
+        // ** got a withdrawal -> error
+        // ** got a deposit -> insert balance
+        // * there is balance in the snapshot
+        // ** got a withdrawal -> checked_sub
+        // *** overflow -> error
+        // *** sucsess -> update balance
+        // ** got a deposit -> checked_add
+        // *** overflow -> error
+        // *** success -> updated the snapshot
+
+        let mut snapshot = sub.balances_snapshot.write().await;
+
+        let new_balance = match snapshot.get(&token) {
+            Some(balance_as_string) => {
+                let curr_balance = balance_as_string.parse::<U256>().map_err(|err| {
+                    tracing::error!(
+                        error = %err,
+                        "error when parse balance string to U256 from snapshot"
+                    );
+                    UpdateBalanceError::UnableToParseBalanceString(token, balance_as_string.clone())
+                })?;
+
+                match event_data {
+                    WethEvents::Deposit(value) => {
+                        curr_balance
+                            .checked_add(value)
+                            // TODO add tracing
+                            .ok_or(UpdateBalanceError::OverflowError {
+                                token,
+                                operation: '+',
+                                initial_value: curr_balance,
+                                operand: value,
+                            })?
+                    }
+                    WethEvents::Withdrawal(value) => {
+                        curr_balance
+                            .checked_sub(value)
+                            // TODO add tracing
+                            .ok_or(UpdateBalanceError::OverflowError {
+                                token,
+                                operation: '-',
+                                initial_value: curr_balance,
+                                operand: value,
+                            })?
+                    }
+                }
+            }
+            None => match event_data {
+                WethEvents::Deposit(value) => value,
+                WethEvents::Withdrawal(value) => {
+                    return Err(UpdateBalanceError::AttemptToSubFromZero(token, value));
+                }
+            },
+        };
+
+        Ok(new_balance)
+    }
+
+    fn parse_weth_logs(log: &Log) -> Result<WethEvents, ParseWeb3LogsError> {
+        let topic0 = log.topic0().ok_or(ParseWeb3LogsError::Topic0IsNone)?;
+
+        if *topic0 == WrappedToken::Deposit::SIGNATURE_HASH {
+            let data = log
+                .log_decode::<WrappedToken::Deposit>()
+                .map_err(|err| {
+                    tracing::error!(
+                        error = %err,
+                        "error when decode DEPOSIT event"
+                    );
+
+                    ParseWeb3LogsError::ParseWethLogError("Deposit".into(), err.to_string())
+                })?
+                .inner
+                .data;
+
+            tracing::info!("Deposit event dst={}, wad={}", data.dst, data.wad);
+            return Ok(WethEvents::Deposit(data.wad));
+        }
+
+        if *topic0 == WrappedToken::Withdrawal::SIGNATURE_HASH {
+            let data = log
+                .log_decode::<WrappedToken::Withdrawal>()
+                .map_err(|err| {
+                    tracing::error!(
+                        error = %err,
+                        "error when decode Withdrawal event"
+                    );
+
+                    ParseWeb3LogsError::ParseWethLogError("Withdrawal".into(), err.to_string())
+                })?
+                .inner
+                .data;
+
+            tracing::info!("Withdrawal event: src={}, wad={}", data.src, data.wad);
+            return Ok(WethEvents::Withdrawal(data.wad));
+        }
+
+        Err(ParseWeb3LogsError::UnexpectedHashSignature)
     }
 
     async fn spawn_erc20_transfer_listeners(&self) -> Result<(), WatcherError> {

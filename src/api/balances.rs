@@ -10,7 +10,6 @@ use axum::{
 };
 use futures::{Stream, StreamExt};
 use serde::Serialize;
-use std::fmt::format;
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio_stream::wrappers::BroadcastStream;
 
