@@ -29,6 +29,12 @@ Content-Type: application/json
 }
 ```
 
+**Response:**
+| Status | Description |
+|--------|-------------|
+| `200 OK` | Session created successfully |
+| `400 Bad Request` | `tokensListsUrls` is empty or token limit exceeded |
+
 **Example:**
 ```bash
 curl -X POST http://localhost:8080/1/sessions/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 \
@@ -49,6 +55,13 @@ Content-Type: application/json
   "customTokens": ["0xNewTokenAddress"]
 }
 ```
+
+**Response:**
+| Status | Description |
+|--------|-------------|
+| `200 OK` | Session updated successfully |
+| `400 Bad Request` | Both fields empty or token limit exceeded |
+| `404 Not Found` | Session does not exist |
 
 ### SSE Balances Stream
 
@@ -92,6 +105,17 @@ curl http://localhost:8080/{chain_id}/balance/{owner}/{token}
 curl http://localhost:8080/1/balance/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045/0xdAC17F958D2ee523a2206206994597C13D831ec7
 ```
 
+### Error Response Format
+
+All error responses follow this structure:
+
+```json
+{
+  "code": 400,
+  "message": "Bad request: tokensListsUrls should not be empty"
+}
+```
+
 ## Usage Flow
 
 1. **Create session** with token lists URLs
@@ -129,6 +153,14 @@ sequenceDiagram
 | `SEPOLIA_WC_RPC` | Sepolia WebSocket RPC URL | - |
 | `MULTICALL_ADDRESS` | Multicall3 contract address | `0xcA11bde05977b3631167028862bE2a173976CA11` |
 | `SNAPSHOT_INTERVAL` | Balance snapshot interval in seconds | `60` |
+| `MAX_WATCHED_TOKENS_LIMIT` | Maximum tokens per session | `1000` |
+| `ALLOWED_ORIGINS` | Comma-separated CORS origins | `*` (all) |
+| `WETH_CONTRACT_ADDRESSES` | WETH addresses per chain (format: `chainId:address,...`) | - |
+
+**Example `WETH_CONTRACT_ADDRESSES`:**
+```bash
+WETH_CONTRACT_ADDRESSES=1:0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,42161:0x82aF49447D8a07e3bd95BD0d56f35241523fBab1,11155111:0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14
+```
 
 ## Quick Start
 

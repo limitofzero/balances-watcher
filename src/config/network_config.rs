@@ -1,5 +1,5 @@
-use crate::args::Args;
 use crate::domain::EvmNetwork;
+use crate::{args::Args, config::errors::NetworkConfigError};
 use alloy::primitives::Address;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -14,6 +14,7 @@ pub struct NetworkConfig {
     pub snapshot_interval: usize,
     pub max_watched_tokens_limit: usize,
     pub allowed_origins: Vec<String>,
+    pub weth_addresses: HashMap<EvmNetwork, Address>,
 }
 
 impl NetworkConfig {
@@ -72,6 +73,8 @@ impl NetworkConfig {
 
         tracing::info!(origins = %allowed_origins.join(", "), "init origins from env");
 
+        let weth_addresses = Self::parse_weth_contracts_map(&args.weth_contract_addresses);
+
         Self {
             rpcs,
             multicall_address,
@@ -79,6 +82,7 @@ impl NetworkConfig {
             snapshot_interval,
             max_watched_tokens_limit,
             allowed_origins,
+            weth_addresses,
         }
     }
 
@@ -88,5 +92,56 @@ impl NetworkConfig {
 
     pub fn multicall_address(&self) -> &Address {
         &self.multicall_address
+    }
+
+    fn parse_weth_contracts_map(weth_contract_addresses: &String) -> HashMap<EvmNetwork, Address> {
+        let mut weth_address_map: HashMap<EvmNetwork, Address> = HashMap::new();
+
+        for entry in weth_contract_addresses.split(',') {
+            let entry = entry.trim();
+            if entry.is_empty() {
+                tracing::error!("WETH_CONTRACT_ADDRESSES should contain <network:address>,<network:address> list");
+                continue;
+            }
+
+            if let Some((chain_id, address)) = entry.split_once(':') {
+                match NetworkConfig::parse_network_address(chain_id, address) {
+                    Ok((network, address)) => {
+                        weth_address_map.insert(network, address);
+
+                        tracing::info!(
+                            "init address({}) for WETH for network({})",
+                            address,
+                            network
+                        );
+                    }
+                    Err(err) => {
+                        tracing::error!(
+                            error = %err,
+                            "error when parse network:address value",
+                        );
+                    }
+                }
+            } else {
+                tracing::error!("WETH_CONTRACT_ADDRESSES should contain <network:address>,<network:address> list");
+            }
+        }
+
+        weth_address_map
+    }
+
+    fn parse_network_address(
+        chain_id: &str,
+        address: &str,
+    ) -> Result<(EvmNetwork, Address), NetworkConfigError> {
+        let network = chain_id
+            .parse::<EvmNetwork>()
+            .map_err(|err| NetworkConfigError::InvalidChainId(err.to_string()))?;
+
+        let address = address
+            .parse::<Address>()
+            .map_err(|_| NetworkConfigError::InvalidAddress(network))?;
+
+        Ok((network, address))
     }
 }
