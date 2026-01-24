@@ -1,11 +1,8 @@
-use std::{
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use crate::evm::erc20::ERC20;
 use alloy::{
-    primitives::{map::HashMap, Address, U256},
+    primitives::{Address, U256},
     providers::{DynProvider, Provider},
     rpc::types::{Filter, Log, Topic},
     sol_types::SolEvent,
@@ -216,20 +213,10 @@ impl Watcher {
                     },
                     Some(log) = stream.next() => {
                         let event = match Self::parse_weth_logs(&log) {
-                            Ok(WethEvents::Deposit(value)) => {
-
-
-                                BalanceEvent::TokenBalanceUpdated {
-                                    address: ctx.weth_address,
-                                    // TODO update balance properly
-                                    balance: value.to_string(),
-                                }
-                            },
-                            Ok(WethEvents::Withdrawal(value)) => {
-                                BalanceEvent::TokenBalanceUpdated {
-                                    address: ctx.weth_address,
-                                    // TODO update balance properly
-                                    balance: value.to_string(),
+                            Ok(parsed_event_data) => {
+                                match Self::update_weth_balance_in_snapshot(Arc::clone(&sub), ctx.weth_address, parsed_event_data).await {
+                                    Ok(value) => BalanceEvent::TokenBalanceUpdated { address: ctx.weth_address, balance: value.to_string() },
+                                    Err(err) => BalanceEvent::Error { code: 500, message: err.to_string() },
                                 }
                             },
                             Err(err) => {
@@ -240,7 +227,12 @@ impl Watcher {
                             }
                         };
 
-                        //
+                        let _ = sub.sender.send(event).inspect_err(|err| {
+                            tracing::info!(
+                                error = %err,
+                                "unable to send update_balance event: {err}"
+                            );
+                        });
                     }
                     // TODO: handle None - disconnect
                 }
@@ -251,7 +243,6 @@ impl Watcher {
     }
 
     async fn update_weth_balance_in_snapshot(
-        &self,
         sub: Arc<Subscription>,
         token: Address,
         event_data: WethEvents,
@@ -313,6 +304,7 @@ impl Watcher {
             },
         };
 
+        snapshot.insert(token, new_balance.to_string());
         Ok(new_balance)
     }
 
@@ -366,6 +358,7 @@ impl Watcher {
 
         self.spawn_erc20_transfer_listener_with_filter(from).await?;
         self.spawn_erc20_transfer_listener_with_filter(to).await?;
+        self.spawn_wrapped_events_listener().await?;
 
         Ok(())
     }
