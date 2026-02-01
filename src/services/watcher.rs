@@ -247,18 +247,6 @@ impl Watcher {
         token: Address,
         event_data: WethEvents,
     ) -> Result<U256, UpdateBalanceError> {
-        // cases that need to handle
-        // * there is no balance in the snapshot
-        // ** got a withdrawal -> error
-        // ** got a deposit -> insert balance
-        // * there is balance in the snapshot
-        // ** got a withdrawal -> checked_sub
-        // *** overflow -> error
-        // *** sucsess -> update balance
-        // ** got a deposit -> checked_add
-        // *** overflow -> error
-        // *** success -> updated the snapshot
-
         let mut snapshot = sub.balances_snapshot.write().await;
 
         let new_balance = match snapshot.get(&token) {
