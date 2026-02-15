@@ -8,8 +8,7 @@ use super::constants::{DEFAULT_MAX_WATCHED_TOKENS_LIMIT, DEFAULT_SNAPSHOT_INTERV
 
 #[derive(Debug)]
 pub struct NetworkConfig {
-    pub rpcs: HashMap<EvmNetwork, String>,
-    pub ws_rpcs: HashMap<EvmNetwork, String>,
+    api_key: String,
     pub multicall_address: Address,
     pub snapshot_interval: usize,
     pub max_watched_tokens_limit: usize,
@@ -19,28 +18,7 @@ pub struct NetworkConfig {
 
 impl NetworkConfig {
     pub fn init(args: &Args) -> Self {
-        let mut rpcs: HashMap<EvmNetwork, String> = HashMap::new();
-        let mut ws_rpcs: HashMap<EvmNetwork, String> = HashMap::new();
-
-        if !args.arbitrum_rpc.is_empty() {
-            rpcs.insert(EvmNetwork::Arbitrum, args.arbitrum_rpc.clone());
-        }
-
-        if !args.eth_rpc.is_empty() {
-            rpcs.insert(EvmNetwork::Eth, args.eth_rpc.clone());
-        }
-
-        if !args.eth_ws_rpc.is_empty() {
-            ws_rpcs.insert(EvmNetwork::Eth, args.eth_ws_rpc.clone());
-        }
-
-        if !args.sepolia_rpc.is_empty() {
-            rpcs.insert(EvmNetwork::Sepolia, args.sepolia_rpc.clone());
-        }
-
-        if !args.sepolia_ws_rpc.is_empty() {
-            ws_rpcs.insert(EvmNetwork::Sepolia, args.sepolia_ws_rpc.clone());
-        }
+        let api_key = args.alchemy_api_key.clone();
 
         let multicall_address = Address::from_str(&args.multicall_address)
             .inspect_err(|err| {
@@ -76,18 +54,13 @@ impl NetworkConfig {
         let weth_addresses = Self::parse_weth_contracts_map(&args.weth_contract_addresses);
 
         Self {
-            rpcs,
+            api_key,
             multicall_address,
-            ws_rpcs,
             snapshot_interval,
             max_watched_tokens_limit,
             allowed_origins,
             weth_addresses,
         }
-    }
-
-    pub fn rpc_url(&self, network: EvmNetwork) -> Option<&String> {
-        self.rpcs.get(&network)
     }
 
     pub fn multicall_address(&self) -> &Address {
@@ -128,6 +101,24 @@ impl NetworkConfig {
         }
 
         weth_address_map
+    }
+
+    fn network_subdomain(network: EvmNetwork) -> &'static str {
+        match network {
+            EvmNetwork::Eth => "eth-mainnet",
+            EvmNetwork::Arbitrum => "arb-mainnet",
+            EvmNetwork::Sepolia => "eth-sepolia",
+        }
+    }
+
+    pub fn alchemy_http_url(&self, network: EvmNetwork) -> String {
+        let subdomain = Self::network_subdomain(network);
+        format!("https://{}.g.alchemy.com/v2/{}", subdomain, self.api_key)
+    }
+
+    pub fn alchemy_ws_url(&self, network: EvmNetwork) -> String {
+        let subdomain = Self::network_subdomain(network);
+        format!("wss://{}.g.alchemy.com/v2/{}", subdomain, self.api_key)
     }
 
     fn parse_network_address(

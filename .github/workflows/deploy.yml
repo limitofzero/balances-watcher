@@ -42,15 +42,21 @@ jobs:
 
       - name: Deploy to k8s
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
+          envs: ALCHEMY_API_KEY
           script: |
             export KUBECONFIG=/home/limitofzero/.kube/config
+            kubectl create secret generic balances-watcher-secrets \
+              --from-literal=ALCHEMY_API_KEY=$ALCHEMY_API_KEY \
+              --dry-run=client -o yaml | kubectl apply -f -
             kubectl apply -f /tmp/k8s-manifests/cluster-issuer.yaml
             kubectl apply -f /tmp/k8s-manifests/deployment.yaml
             kubectl apply -f /tmp/k8s-manifests/service.yaml
-            kubectl apply -f /tmp/k8s-manifests/ingress.yaml 
+            kubectl apply -f /tmp/k8s-manifests/ingress.yaml
             kubectl rollout restart deployment/balances-watcher
             kubectl rollout status deployment/balances-watcher
