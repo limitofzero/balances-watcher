@@ -14,6 +14,8 @@ pub enum EvmNetwork {
 const NATIVE_ADDRESS: Address = address!("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE");
 
 impl EvmNetwork {
+    pub const ALL: [EvmNetwork; 3] = [EvmNetwork::Eth, EvmNetwork::Arbitrum, EvmNetwork::Sepolia];
+
     pub fn chain_id(self) -> u64 {
         self as u64
     }
