@@ -43,6 +43,13 @@ pub async fn create_session(
         .await
         .map_err(|err| AppError::BadRequest(err.to_string()))?;
 
+    let weth_address = state
+        .network_config
+        .weth_addresses
+        .get(&network)
+        .ok_or(AppError::WethAddressIsNotDefined(network))?;
+    tokens.insert(*weth_address);
+
     let mut combined = tokens.clone();
     combined.extend(body.custom_tokens.clone());
 

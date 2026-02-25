@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{fmt, sync::Arc, time::Duration};
 
 use crate::evm::erc20::ERC20;
 use alloy::{
@@ -27,6 +27,25 @@ enum WethEvents {
     Withdrawal(U256),
 }
 
+#[derive(Clone, Debug)]
+pub enum Operation {
+    Add(U256, U256),
+    Sub(U256, U256),
+}
+
+impl fmt::Display for Operation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Operation::Add(l, r) => {
+                write!(f, "Add, left : {}, right : {}", l, r)
+            }
+            Operation::Sub(l, r) => {
+                write!(f, "Sub, left: {}, right: {}", l, r)
+            }
+        }
+    }
+}
+
 #[derive(Error, Debug, Clone)]
 pub enum WatcherError {
     #[error("ws rpc subscription on erc20 TRANSFER for network({0}) event connection error for owner: {1}")]
@@ -53,12 +72,11 @@ pub enum UpdateBalanceError {
     #[error("unable to parse balance from snapshot string: token: {0}, value: {1}")]
     UnableToParseBalanceString(Address, String),
 
-    #[error("overflow happened: token {token}, operation: {operation}, initial_value: {initial_value}, operand: {operand}")]
+    #[error("overflow happened: token: {token}, network: {network}, operation: {operation}")]
     OverflowError {
         token: Address,
-        operation: char,
-        initial_value: U256,
-        operand: U256,
+        network: EvmNetwork,
+        operation: Operation,
     },
 
     #[error("attempt to sub from zero balance: token: {0}, value to sub: {1}")]
@@ -181,7 +199,8 @@ impl Watcher {
         ];
         let filter = Filter::new()
             .address(ctx.weth_address)
-            .event_signature(event_signatures);
+            .event_signature(event_signatures)
+            .topic1(Topic::from(ctx.owner));
 
         let mut stream = self
             .ctx
@@ -214,7 +233,7 @@ impl Watcher {
                     Some(log) = stream.next() => {
                         let event = match Self::parse_weth_logs(&log) {
                             Ok(parsed_event_data) => {
-                                match Self::update_weth_balance_in_snapshot(Arc::clone(&sub), ctx.weth_address, parsed_event_data).await {
+                                match Self::update_weth_balance_in_snapshot(Arc::clone(&sub), ctx.weth_address, ctx.network, parsed_event_data).await {
                                     Ok(value) => BalanceEvent::TokenBalanceUpdated { address: ctx.weth_address, balance: value.to_string() },
                                     Err(err) => BalanceEvent::Error { code: 500, message: err.to_string() },
                                 }
@@ -245,6 +264,7 @@ impl Watcher {
     async fn update_weth_balance_in_snapshot(
         sub: Arc<Subscription>,
         token: Address,
+        network: EvmNetwork,
         event_data: WethEvents,
     ) -> Result<U256, UpdateBalanceError> {
         let mut snapshot = sub.balances_snapshot.write().await;
@@ -266,9 +286,8 @@ impl Watcher {
                             // TODO add tracing
                             .ok_or(UpdateBalanceError::OverflowError {
                                 token,
-                                operation: '+',
-                                initial_value: curr_balance,
-                                operand: value,
+                                network,
+                                operation: Operation::Add(curr_balance, value),
                             })?
                     }
                     WethEvents::Withdrawal(value) => {
@@ -277,9 +296,8 @@ impl Watcher {
                             // TODO add tracing
                             .ok_or(UpdateBalanceError::OverflowError {
                                 token,
-                                operation: '-',
-                                initial_value: curr_balance,
-                                operand: value,
+                                network,
+                                operation: Operation::Sub(curr_balance, value),
                             })?
                     }
                 }

@@ -67,7 +67,7 @@ impl NetworkConfig {
         &self.multicall_address
     }
 
-    fn parse_weth_contracts_map(weth_contract_addresses: &String) -> HashMap<EvmNetwork, Address> {
+    fn parse_weth_contracts_map(weth_contract_addresses: &str) -> HashMap<EvmNetwork, Address> {
         let mut weth_address_map: HashMap<EvmNetwork, Address> = HashMap::new();
 
         for entry in weth_contract_addresses.split(',') {

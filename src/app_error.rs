@@ -21,6 +21,9 @@ pub enum AppError {
 
     #[error("Token limit exceeded")]
     TokenLimitExceeded,
+
+    #[error("WETH address is not defined for network: {0}")]
+    WethAddressIsNotDefined(EvmNetwork),
 }
 
 #[derive(Serialize)]
@@ -37,6 +40,9 @@ impl IntoResponse for AppError {
             AppError::ProviderIsNotDefined(_) => (StatusCode::NOT_FOUND, &self.to_string()),
             AppError::NoSession(_, _) => (StatusCode::NOT_FOUND, &self.to_string()),
             AppError::TokenLimitExceeded => (StatusCode::BAD_REQUEST, &self.to_string()),
+            AppError::WethAddressIsNotDefined(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, &self.to_string())
+            }
         };
 
         (

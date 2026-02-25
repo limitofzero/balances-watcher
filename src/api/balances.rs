@@ -80,10 +80,10 @@ pub async fn get_balances(
         .get(&network)
         .ok_or_else(|| {
             tracing::error!("there is no weth address for network {}", network);
-            return StreamError {
+            StreamError {
                 code: 500,
                 message: format!("WETH address for {} network is not defined", network),
-            };
+            }
         })?;
 
     if is_first {
