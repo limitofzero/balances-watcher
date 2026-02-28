@@ -1,7 +1,7 @@
 use crate::config::constants::BROADCAST_CHANNEL_CAPACITY;
 use crate::domain::{BalanceEvent, SubscriptionKey};
 use crate::services::errors::SubscriptionError;
-use alloy::primitives::Address;
+use alloy::primitives::{Address, U256};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -15,7 +15,7 @@ struct SubWithCounter {
 
 pub struct Subscription {
     pub sender: broadcast::Sender<BalanceEvent>,
-    pub balances_snapshot: RwLock<HashMap<Address, String>>,
+    pub balances_snapshot: RwLock<HashMap<Address, U256>>,
     pub cancel_token: tokio_util::sync::CancellationToken,
     pub tokens: RwLock<HashSet<Address>>,
 }

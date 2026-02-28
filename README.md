@@ -5,13 +5,15 @@ Real-time ERC20 token balance tracking service with SSE (Server-Sent Events) sup
 ## Features
 
 - Real-time balance updates via SSE
-- Multicall for batch balance queries
-- WebSocket subscriptions for Transfer events
+- Multicall3 for efficient batch balance queries
+- WebSocket subscriptions for ERC20 Transfer events
+- WETH wrap/unwrap event listening (Deposit/Withdrawal)
 - Multi-chain support (Ethereum, Arbitrum, Sepolia)
 - Session-based token list management
-- Shared subscriptions for multiple clients
+- Shared subscriptions for multiple clients watching the same wallet
 - Token list caching with TTL (5 hours)
 - Token limit per session (max 1000 tokens)
+- Diff-based updates (only sends changed balances)
 
 ## API Endpoints
 
@@ -28,6 +30,12 @@ Content-Type: application/json
   "customTokens": ["0xTokenAddress1", "0xTokenAddress2"]
 }
 ```
+
+**Response:**
+| Status | Description |
+|--------|-------------|
+| `200 OK` | Session created successfully |
+| `400 Bad Request` | `tokensListsUrls` is empty or token limit exceeded |
 
 **Example:**
 ```bash
@@ -50,6 +58,13 @@ Content-Type: application/json
 }
 ```
 
+**Response:**
+| Status | Description |
+|--------|-------------|
+| `200 OK` | Session updated successfully |
+| `400 Bad Request` | Both fields empty or token limit exceeded |
+| `404 Not Found` | Session does not exist |
+
 ### SSE Balances Stream
 
 Subscribe to real-time balance updates. **Requires an active session.**
@@ -67,18 +82,17 @@ curl -N http://localhost:8080/sse/1/balances/0xd8dA6BF26964aF9D7eEd9e03E53415D37
 
 | Event | Description |
 |-------|-------------|
-| `all_balances` | Full balance snapshot (sent on connect and every interval) |
-| `balance_update` | Single token balance update (on Transfer event) |
+| `balance_update` | Balance update (full snapshot on connect/interval, or diff on Transfer/WETH events) |
 | `error` | Error message |
 
 **Response format:**
 
 ```
-event: all_balances
+event: balance_update
 data: {"balances":{"0xToken1Address":"1000000","0xToken2Address":"500000"}}
 
-event: balance_update
-data: {"address":"0xTokenAddress","balance":"1500000"}
+event: error
+data: {"code":500,"message":"Error description"}
 ```
 
 ### Get Single Token Balance
@@ -92,6 +106,17 @@ curl http://localhost:8080/{chain_id}/balance/{owner}/{token}
 curl http://localhost:8080/1/balance/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045/0xdAC17F958D2ee523a2206206994597C13D831ec7
 ```
 
+### Error Response Format
+
+All error responses follow this structure:
+
+```json
+{
+  "code": 400,
+  "message": "Bad request: tokensListsUrls should not be empty"
+}
+```
+
 ## Usage Flow
 
 1. **Create session** with token lists URLs
@@ -102,17 +127,23 @@ curl http://localhost:8080/1/balance/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045/
 sequenceDiagram
     participant Client
     participant Server
-    
+    participant Blockchain
+
     Client->>Server: POST /1/sessions/0x... (token lists)
     Server-->>Client: 200 OK
-    
+
     Client->>Server: GET /sse/1/balances/0x...
-    Server-->>Client: SSE: all_balances {...}
-    
-    loop On Transfer events
-        Server-->>Client: SSE: balance_update {...}
+    Server-->>Client: SSE: balance_update (full snapshot)
+
+    loop On ERC20 Transfer / WETH Deposit/Withdrawal
+        Blockchain-->>Server: Event detected
+        Server-->>Client: SSE: balance_update (diff only)
     end
-    
+
+    loop Every snapshot interval
+        Server-->>Client: SSE: balance_update (full snapshot)
+    end
+
     Client->>Server: PUT /1/sessions/0x... (add tokens)
     Server-->>Client: 200 OK
 ```
@@ -122,22 +153,28 @@ sequenceDiagram
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `HTTP_BIND` | Server bind address | `0.0.0.0:8080` |
-| `ETH_RPC` | Ethereum HTTP RPC URL | - |
-| `ETH_WC_RPC` | Ethereum WebSocket RPC URL | - |
-| `ARBITRUM_RPC` | Arbitrum HTTP RPC URL | - |
-| `SEPOLIA_RPC` | Sepolia HTTP RPC URL | - |
-| `SEPOLIA_WC_RPC` | Sepolia WebSocket RPC URL | - |
+| `ALCHEMY_API_KEY` | Alchemy API key (required) | - |
+| `TOKEN_LIST_PATH` | Path to local token list config | `configs/tokens_list.json` |
 | `MULTICALL_ADDRESS` | Multicall3 contract address | `0xcA11bde05977b3631167028862bE2a173976CA11` |
 | `SNAPSHOT_INTERVAL` | Balance snapshot interval in seconds | `60` |
+| `MAX_WATCHED_TOKENS_LIMIT` | Maximum tokens per session | `1000` |
+| `ALLOWED_ORIGINS` | Comma-separated CORS origins | `*` (all) |
+| `WETH_CONTRACT_ADDRESSES` | WETH addresses per chain (format: `chainId:address,...`) | Uses predefined addresses |
+
+**Predefined WETH addresses:**
+| Network | Address |
+|---------|---------|
+| Ethereum (1) | `0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2` |
+| Arbitrum (42161) | `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` |
+| Sepolia (11155111) | `0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14` |
 
 ## Quick Start
 
 ### Local Development
 
 ```bash
-# Set environment variables
-export ETH_RPC=https://eth.llamarpc.com
-export ETH_WC_RPC=wss://eth.drpc.org
+# Set required environment variable
+export ALCHEMY_API_KEY=your_alchemy_api_key
 
 # Run
 cargo run
@@ -164,13 +201,26 @@ docker-compose logs -f
 | Arbitrum One | 42161 |
 | Sepolia Testnet | 11155111 |
 
+## Blockchain Events Listened
+
+The service subscribes to the following on-chain events via WebSocket:
+
+| Event | Contract | Description |
+|-------|----------|-------------|
+| `Transfer(address indexed from, address indexed to, uint256 value)` | ERC20 tokens | Triggered when tokens are transferred to/from the watched wallet |
+| `Deposit(address indexed dst, uint256 wad)` | WETH | Triggered when ETH is wrapped to WETH |
+| `Withdrawal(address indexed src, uint256 wad)` | WETH | Triggered when WETH is unwrapped to ETH |
+
+When any of these events occur, the service fetches the updated balance for the affected token plus the native ETH balance, and broadcasts only the changed balances to connected clients.
+
 ## Limits
 
 | Limit | Value | Description |
 |-------|-------|-------------|
-| Max tokens per session | 10,000 | Maximum number of tokens that can be watched per session |
+| Max tokens per session | 1,000 | Maximum number of tokens that can be watched per session |
 | Token list cache TTL | 5 hours | Token lists are cached to reduce HTTP requests |
 | Session idle TTL | 60 seconds | Sessions with no active SSE clients are cleaned up |
+| Broadcast channel capacity | 256 | Maximum pending events per subscription |
 
 ## Project Structure
 
@@ -196,7 +246,7 @@ src/
 │   ├── subscription_manager.rs  # Shared subscriptions
 │   ├── watcher.rs       # Balance watchers
 │   ├── balances.rs      # Multicall service
-│   └── tokens_from_list.rs # Token list fetcher
+│   └── token_list_fetcher.rs # Token list fetcher
 ├── infra/               # Infrastructure (providers)
 └── tracing/             # Logging setup
 ```
@@ -217,7 +267,7 @@ src/
 - [ ] **SSE heartbeat** - Periodic `:ping` to prevent proxy timeouts
 
 ### Features
-- [ ] **WETH wrap/unwrap listening** - Handle Deposit/Withdrawal events
+- [x] **WETH wrap/unwrap listening** - Handle Deposit/Withdrawal events
 - [x] **Token lists caching** - Cache with TTL (5h) to reduce HTTP requests
 - [ ] **CoW Protocol order events** - Listen for ETH order settlements
 - [ ] **ETH transactions listening** - Monitor native balance changes

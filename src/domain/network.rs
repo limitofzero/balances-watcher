@@ -1,7 +1,10 @@
 use crate::domain::errors::EvmError;
 use alloy::primitives::{address, Address};
 use serde::{Deserialize, Deserializer};
-use std::fmt::{Display, Formatter};
+use std::{
+    fmt::{Display, Formatter},
+    str::FromStr,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u64)]
@@ -35,6 +38,15 @@ impl TryFrom<u64> for EvmNetwork {
             11155111 => Ok(EvmNetwork::Sepolia),
             _ => Err(EvmError::UnsupportedNetwork(id)),
         }
+    }
+}
+
+impl FromStr for EvmNetwork {
+    type Err = EvmError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let chain_id = s.parse::<u64>().map_err(|_| EvmError::InvalidNetworkId)?;
+        EvmNetwork::try_from(chain_id)
     }
 }
 

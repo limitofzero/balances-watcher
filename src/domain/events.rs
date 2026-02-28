@@ -14,9 +14,7 @@ pub struct SubscriptionKey {
 #[derive(Debug, Clone, Serialize)]
 pub enum BalanceEvent {
     /// Full balance snapshot (all tokens)
-    FullSnapshot(HashMap<Address, String>),
-    /// Single token balance update
-    TokenBalanceUpdated { address: Address, balance: String },
+    BalanceUpdate(HashMap<Address, String>),
     /// Error event
     Error { code: u16, message: String },
 }

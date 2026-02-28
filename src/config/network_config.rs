@@ -1,9 +1,9 @@
+use super::constants::{DEFAULT_MAX_WATCHED_TOKENS_LIMIT, DEFAULT_SNAPSHOT_INTERVAL_SECS};
 use crate::args::Args;
+use crate::config::wrapped_address::get_wrapped_address;
 use crate::domain::EvmNetwork;
 use alloy::primitives::Address;
 use std::str::FromStr;
-
-use super::constants::{DEFAULT_MAX_WATCHED_TOKENS_LIMIT, DEFAULT_SNAPSHOT_INTERVAL_SECS};
 
 #[derive(Debug)]
 pub struct NetworkConfig {
@@ -78,5 +78,9 @@ impl NetworkConfig {
     pub fn alchemy_ws_url(&self, network: EvmNetwork) -> String {
         let subdomain = Self::network_subdomain(network);
         format!("wss://{}.g.alchemy.com/v2/{}", subdomain, self.api_key)
+    }
+
+    pub fn weth_address(&self, network: &EvmNetwork) -> Address {
+        get_wrapped_address(network)
     }
 }

@@ -43,6 +43,9 @@ pub async fn create_session(
         .await
         .map_err(|err| AppError::BadRequest(err.to_string()))?;
 
+    let weth_address = state.network_config.weth_address(&network);
+    tokens.insert(weth_address);
+
     let mut combined = tokens.clone();
     combined.extend(body.custom_tokens.clone());
 

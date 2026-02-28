@@ -19,12 +19,6 @@ pub struct BalancesResponse {
 }
 
 #[derive(Serialize)]
-struct TokenBalanceSseEvent {
-    address: Address,
-    balance: String,
-}
-
-#[derive(Serialize)]
 struct ErrorBalanceSseEvent {
     code: u16,
     message: String,
@@ -74,6 +68,8 @@ pub async fn get_balances(
                 message: e.to_string(),
             })?;
 
+    let weth_address = state.network_config.weth_address(&network);
+
     if is_first {
         let ctx = WatcherContext {
             provider,
@@ -81,6 +77,7 @@ pub async fn get_balances(
             network,
             multicall3: *multicall3,
             ws_provider,
+            weth_address,
         };
 
         Watcher::new(ctx, Arc::clone(&subscription))
@@ -95,7 +92,12 @@ pub async fn get_balances(
                 message: format!("Empty snapshot for {network} for {owner}"),
             }
         } else {
-            BalanceEvent::FullSnapshot(balance_snapshot.clone())
+            let balance_snapshot: HashMap<Address, String> = balance_snapshot
+                .clone()
+                .into_iter()
+                .map(|(address, balance)| (address, balance.to_string()))
+                .collect();
+            BalanceEvent::BalanceUpdate(balance_snapshot)
         };
 
         let _ = subscription.sender.send(event).inspect_err(|err| {
@@ -144,14 +146,11 @@ pub async fn get_balances(
 
 fn balance_event_to_sse(event: BalanceEvent) -> Result<Event, axum::Error> {
     match event {
-        BalanceEvent::FullSnapshot(balances_map) => Event::default()
-            .event("all_balances")
+        BalanceEvent::BalanceUpdate(balances_map) => Event::default()
+            .event("balance_update")
             .json_data(BalancesResponse {
                 balances: balances_map,
             }),
-        BalanceEvent::TokenBalanceUpdated { address, balance } => Event::default()
-            .event("balance_update")
-            .json_data(TokenBalanceSseEvent { address, balance }),
         BalanceEvent::Error { code, message } => Event::default()
             .event("error")
             .json_data(ErrorBalanceSseEvent { code, message }),
