@@ -167,11 +167,11 @@ impl Watcher {
             }
         };
 
-        event.map(|event| {
+        if let Some(event) = event {
             let _ = sub.sender.send(event).inspect_err(|err| {
                 tracing::info!("unable to send update_snapshot event to clients: {err}");
             });
-        });
+        }
     }
 
     // request balances via multicall for a list of tokens and map error
@@ -269,15 +269,14 @@ impl Watcher {
                             }
                         };
 
-
-                        event.map(|event| {
-                                let _ = sub.sender.send(event).inspect_err(|err| {
+                        if let Some(event) = event {
+                            let _ = sub.sender.send(event).inspect_err(|err| {
                                 tracing::info!(
                                     error = %err,
                                     "unable to send update_balance event: {err}"
                                 );
                             });
-                        });
+                        }
                     }
                     // TODO: handle None - disconnect
                 }
@@ -481,14 +480,14 @@ impl Watcher {
                             }
                         };
 
-                        event.map(|event| {
-                                let _ = sub.sender.send(event).inspect_err(|err| {
+                        if let Some(event) = event {
+                            let _ = sub.sender.send(event).inspect_err(|err| {
                                 tracing::info!(
                                     error = %err,
                                     "unable to send update_balance event: {err}"
                                 );
                             });
-                        });
+                        }
                     }
                 }
             }
