@@ -61,9 +61,10 @@ pub async fn get_balances(
         .call()
         .await
         .map_err(|e| ServiceError::BalancesMultiCallError(e.to_string()))?;
+    let t1 = Instant::now();
 
     tracing::info!(
-        time = t0.elapsed().as_secs(),
+        time = t0.elapsed().as_millis(),
         "aggregate3 balances complete"
     );
 

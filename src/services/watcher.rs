@@ -147,29 +147,30 @@ impl Watcher {
 
         let event = match result {
             Ok(balances) => {
-                {
-                    let mut balances_snapshot = sub.balances_snapshot.write().await;
-                    balances_snapshot.extend(balances.clone());
-                }
+                let diff = {
+                    let balance_snapshot = sub.balances_snapshot.write().await;
+                    Self::update_balances_and_take_diff(balance_snapshot, balances)
+                };
 
-                // TODO better to add comparing with previous snapshot and only send updated balances
-                let balances: HashMap<Address, String> = balances
-                    .into_iter()
-                    .map(|(address, balance)| (address, balance.to_string()))
-                    .collect();
-                BalanceEvent::BalanceUpdate(balances)
+                if !diff.is_empty() {
+                    Some(BalanceEvent::BalanceUpdate(diff))
+                } else {
+                    None
+                }
             }
             Err(e) => {
                 tracing::error!("Failed to get balances for {}: {}", owner, e);
-                BalanceEvent::Error {
+                Some(BalanceEvent::Error {
                     code: 500,
                     message: "Error when make multicall3 request".to_string(),
-                }
+                })
             }
         };
 
-        let _ = sub.sender.send(event).inspect_err(|err| {
-            tracing::info!("unable to send update_snapshot event to clients: {err}");
+        event.map(|event| {
+            let _ = sub.sender.send(event).inspect_err(|err| {
+                tracing::info!("unable to send update_snapshot event to clients: {err}");
+            });
         });
     }
 
@@ -196,13 +197,14 @@ impl Watcher {
      */
     async fn spawn_wrapped_events_listener(&self) -> Result<(), WatcherError> {
         let ctx = Arc::clone(&self.ctx);
+        let weth_address = ctx.weth_address;
 
         let event_signatures = vec![
             WrappedToken::Deposit::SIGNATURE_HASH,
             WrappedToken::Withdrawal::SIGNATURE_HASH,
         ];
         let filter = Filter::new()
-            .address(ctx.weth_address)
+            .address(weth_address)
             .event_signature(event_signatures)
             .topic1(Topic::from(ctx.owner));
 
@@ -217,11 +219,11 @@ impl Watcher {
                     error = %err,
                     "error to subscribe on Weth({}:{}) TRANSFER/DEPOSIT events for owner: {}",
                     ctx.network,
-                    ctx.weth_address,
+                    weth_address,
                     ctx.owner,
                 );
 
-                WatcherError::WethEventsSubscription(ctx.network, ctx.weth_address, ctx.owner)
+                WatcherError::WethEventsSubscription(ctx.network, weth_address, ctx.owner)
             })?
             .into_stream();
 
@@ -247,26 +249,34 @@ impl Watcher {
                         break;
                     },
                     Some(log) = stream.next() => {
+                        tracing::info!("received Weth event: {:#?}", log);
+
                         let ctx = Arc::clone(&balance_call_ctx);
-                        let event = match Self::parse_weth_logs_and_fetch_balance(ctx, &log).await {
+                        let event = match Self::parse_weth_logs_and_fetch_balance(ctx, &log, weth_address).await {
                             Ok(balances) => {
                                 let balance_snapshot = sub.balances_snapshot.write().await;
                                 let diff = Self::update_balances_and_take_diff(balance_snapshot, balances);
-                                BalanceEvent::BalanceUpdate(diff)
+
+                                if !diff.is_empty() {
+                                    Some(BalanceEvent::BalanceUpdate(diff))
+                                } else { None }
                             },
                             Err(err) => {
-                                BalanceEvent::Error {
+                                Some(BalanceEvent::Error {
                                     code: 500,
                                     message: err.to_string(),
-                                }
+                                })
                             }
                         };
 
-                        let _ = sub.sender.send(event).inspect_err(|err| {
-                            tracing::info!(
-                                error = %err,
-                                "unable to send update_balance event: {err}"
-                            );
+
+                        event.map(|event| {
+                                let _ = sub.sender.send(event).inspect_err(|err| {
+                                tracing::info!(
+                                    error = %err,
+                                    "unable to send update_balance event: {err}"
+                                );
+                            });
                         });
                     }
                     // TODO: handle None - disconnect
@@ -308,6 +318,7 @@ impl Watcher {
     async fn parse_weth_logs_and_fetch_balance(
         ctx: Arc<BalanceCallCtx>,
         log: &Log,
+        weth_address: Address,
     ) -> Result<HashMap<Address, U256>, WatcherError> {
         let parsed_log = Self::parse_weth_logs(log)
             .map_err(|err| WatcherError::ParseLog(ctx.network, ctx.owner, err.to_string()))?;
@@ -318,7 +329,6 @@ impl Watcher {
             _ => None,
         };
 
-        let weth_address = ctx.network.native_token_address();
         Self::fetch_erc20_and_eth_balance(ctx, weth_address, block_id).await
     }
 
@@ -446,30 +456,38 @@ impl Watcher {
                     },
                     // TODO handle None case / reconnect
                     Some(log) = stream.next() => {
-                        // TODO check address in map before request
+                        tracing::info!("received erc20 transfer event: {:#?}", log);
+
+                        // TODO check address(don't handle tokens outside watched set) in set before request
                         let token_balance = Self::parse_transfer_event_and_get_balance(
                             Arc::clone(&balance_call_ctx),
                             &log
                         ).await;
+
                         let event = match token_balance {
                             Some(token_balance) => {
                                 let balance_snapshot = sub.balances_snapshot.write().await;
                                 let diff = Self::update_balances_and_take_diff(balance_snapshot, token_balance);
-                                BalanceEvent::BalanceUpdate(diff)
+
+                                if !diff.is_empty() {
+                                    Some(BalanceEvent::BalanceUpdate(diff))
+                                } else { None }
                             },
                             None => {
-                                BalanceEvent::Error {
+                                Some(BalanceEvent::Error {
                                     code: 500,
                                     message: "unable to parse erc20 tranfer event".to_string(),
-                                }
+                                })
                             }
                         };
 
-                        let _ = sub.sender.send(event).inspect_err(|err| {
-                            tracing::info!(
-                                error = %err,
-                                "unable to send update_balance event: {err}"
-                            );
+                        event.map(|event| {
+                                let _ = sub.sender.send(event).inspect_err(|err| {
+                                tracing::info!(
+                                    error = %err,
+                                    "unable to send update_balance event: {err}"
+                                );
+                            });
                         });
                     }
                 }
@@ -496,6 +514,9 @@ impl Watcher {
                     diff.insert(address, new_balance.to_string());
                     *current_balance = new_balance;
                 }
+            } else {
+                diff.insert(address, new_balance.to_string());
+                snapshot.insert(address, new_balance);
             }
         }
 
