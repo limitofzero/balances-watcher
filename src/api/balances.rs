@@ -147,7 +147,7 @@ pub async fn get_balances(
 fn balance_event_to_sse(event: BalanceEvent) -> Result<Event, axum::Error> {
     match event {
         BalanceEvent::BalanceUpdate(balances_map) => Event::default()
-            .event("all_balances")
+            .event("balance_update")
             .json_data(BalancesResponse {
                 balances: balances_map,
             }),
