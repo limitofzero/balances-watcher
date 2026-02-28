@@ -93,9 +93,7 @@ pub async fn get_balances(
 
         match <U256 as SolValue>::abi_decode(&resp.returnData) {
             Ok(balance) => {
-                if balance > U256::from(0) {
-                    balances.insert(*erc20_token, balance);
-                }
+                balances.insert(*erc20_token, balance);
             }
             Err(e) => {
                 tracing::error!(error = %e, "abi_decode failed for {}", erc20_token);
