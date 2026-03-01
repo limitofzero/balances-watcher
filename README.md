@@ -8,6 +8,8 @@ Real-time ERC20 token balance tracking service with SSE (Server-Sent Events) sup
 - Multicall3 for efficient batch balance queries
 - WebSocket subscriptions for ERC20 Transfer events
 - WETH wrap/unwrap event listening (Deposit/Withdrawal)
+- WebSocket auto-reconnect with automatic resubscription on disconnect
+- Block-aware snapshot updates (stale update protection via block number comparison)
 - Multi-chain support (Ethereum, Arbitrum, Sepolia)
 - Session-based token list management
 - Shared subscriptions for multiple clients watching the same wallet
@@ -261,7 +263,9 @@ src/
 - [ ] **Graceful shutdown** - Cancel watchers and close connections on SIGTERM
 
 ### Medium Priority
-- [ ] **WebSocket reconnection** - Auto-reconnect and resubscribe on WS disconnect
+- [x] **WebSocket reconnection** - Auto-reconnect and resubscribe on WS disconnect
+- [ ] **Sync state after reconnect** - Re-fetch all balances after WS reconnect to recover events missed during disconnect
+- [ ] **Event batching** - Debounce rapid events (e.g. multiple transfers in the same block) and combine balance requests into a single multicall to reduce RPC usage
 - [ ] **Token list validation** - HTTPS only, domain blocklist, schema validation
 - [ ] **Token list fetch retry** - Exponential backoff on failures
 - [ ] **SSE heartbeat** - Periodic `:ping` to prevent proxy timeouts
