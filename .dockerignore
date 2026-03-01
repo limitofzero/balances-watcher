@@ -16,3 +16,4 @@ docker-compose.yml
 README*
 .env
 .env.local
+CLAUDE.md

@@ -16,11 +16,13 @@ pub struct BalanceCallCtx {
     pub multicall3: Address,
 }
 
+pub type BalancesWithBlock = (HashMap<Address, U256>, U256);
+
 pub async fn get_balances(
     ctx: Arc<BalanceCallCtx>,
     tokens: &[Address],
-    block_id: Option<BlockId>,
-) -> Result<HashMap<Address, U256>, ServiceError> {
+    block_id: BlockId,
+) -> Result<BalancesWithBlock, ServiceError> {
     let native_address = ctx.network.native_token_address();
     let mut erc20_tokens: Vec<Address> = tokens
         .iter()
@@ -32,45 +34,43 @@ pub async fn get_balances(
     // todo check that clone is not expensive here
     let multicall3 = Multicall3::new(ctx.multicall3, ctx.provider.clone());
     // one for erc balances
-    let mut calls: Vec<Multicall3::Call3> = Vec::with_capacity(erc20_tokens.len() + 1);
+    let mut calls: Vec<Multicall3::Call> = Vec::with_capacity(erc20_tokens.len() + 1);
     let owner = ctx.owner;
 
     for address in &erc20_tokens {
         let call = ERC20::balanceOfCall { owner };
         let calldata = call.abi_encode();
-        calls.push(Multicall3::Call3 {
+        calls.push(Multicall3::Call {
             target: *address,
-            allowFailure: true,
             callData: calldata.into(),
         });
     }
 
     let eth_balance_call = Multicall3::getEthBalanceCall { addr: ctx.owner };
     let eth_balance_call_data = eth_balance_call.abi_encode();
-    calls.push(Multicall3::Call3 {
+    calls.push(Multicall3::Call {
         target: ctx.multicall3,
-        allowFailure: true,
         callData: eth_balance_call_data.into(),
     });
 
-    let block_id = block_id.unwrap_or(BlockId::latest());
     let t0 = Instant::now();
-    let balances_resp = multicall3
-        .aggregate3(calls)
+    let call_result = multicall3
+        .tryBlockAndAggregate(false, calls)
         .block(block_id)
         .call()
         .await
         .map_err(|e| ServiceError::BalancesMultiCallError(e.to_string()))?;
 
     tracing::info!(
-        time = t0.elapsed().as_millis(),
+        time_ms = t0.elapsed().as_millis(),
         "aggregate3 balances complete"
     );
 
     let mut balances: HashMap<Address, U256> = HashMap::with_capacity(erc20_tokens.len() + 1);
+    let return_data = &call_result.returnData;
 
     for (i, erc20_token) in erc20_tokens.iter().enumerate() {
-        let resp = &balances_resp.get(i).ok_or_else(|| {
+        let resp = return_data.get(i).ok_or_else(|| {
             ServiceError::BalancesMultiCallError(
                 "multicall3: missing response at index={i} for token={token}".to_string(),
             )
@@ -100,7 +100,7 @@ pub async fn get_balances(
         }
     }
 
-    let eth_balance_resp = balances_resp.get(erc20_tokens.len()).ok_or_else(|| {
+    let eth_balance_resp = return_data.get(erc20_tokens.len()).ok_or_else(|| {
         ServiceError::BalancesMultiCallError(
             "multicall3: missing response at index={i} for token={token}".to_string(),
         )
@@ -115,5 +115,5 @@ pub async fn get_balances(
         }
     }
 
-    Ok(balances)
+    Ok((balances, call_result.blockNumber))
 }

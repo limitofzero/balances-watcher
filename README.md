@@ -8,6 +8,8 @@ Real-time ERC20 token balance tracking service with SSE (Server-Sent Events) sup
 - Multicall3 for efficient batch balance queries
 - WebSocket subscriptions for ERC20 Transfer events
 - WETH wrap/unwrap event listening (Deposit/Withdrawal)
+- WebSocket auto-reconnect with automatic resubscription on disconnect
+- Block-aware snapshot updates (stale update protection via block number comparison)
 - Multi-chain support (Ethereum, Arbitrum, Sepolia)
 - Session-based token list management
 - Shared subscriptions for multiple clients watching the same wallet
@@ -154,19 +156,10 @@ sequenceDiagram
 |----------|-------------|---------|
 | `HTTP_BIND` | Server bind address | `0.0.0.0:8080` |
 | `ALCHEMY_API_KEY` | Alchemy API key (required) | - |
-| `TOKEN_LIST_PATH` | Path to local token list config | `configs/tokens_list.json` |
 | `MULTICALL_ADDRESS` | Multicall3 contract address | `0xcA11bde05977b3631167028862bE2a173976CA11` |
 | `SNAPSHOT_INTERVAL` | Balance snapshot interval in seconds | `60` |
 | `MAX_WATCHED_TOKENS_LIMIT` | Maximum tokens per session | `1000` |
 | `ALLOWED_ORIGINS` | Comma-separated CORS origins | `*` (all) |
-| `WETH_CONTRACT_ADDRESSES` | WETH addresses per chain (format: `chainId:address,...`) | Uses predefined addresses |
-
-**Predefined WETH addresses:**
-| Network | Address |
-|---------|---------|
-| Ethereum (1) | `0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2` |
-| Arbitrum (42161) | `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` |
-| Sepolia (11155111) | `0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14` |
 
 ## Quick Start
 
@@ -261,7 +254,9 @@ src/
 - [ ] **Graceful shutdown** - Cancel watchers and close connections on SIGTERM
 
 ### Medium Priority
-- [ ] **WebSocket reconnection** - Auto-reconnect and resubscribe on WS disconnect
+- [x] **WebSocket reconnection** - Auto-reconnect and resubscribe on WS disconnect
+- [ ] **Sync state after reconnect** - Re-fetch all balances after WS reconnect to recover events missed during disconnect
+- [ ] **Event batching** - Debounce rapid events (e.g. multiple transfers in the same block) and combine balance requests into a single multicall to reduce RPC usage
 - [ ] **Token list validation** - HTTPS only, domain blocklist, schema validation
 - [ ] **Token list fetch retry** - Exponential backoff on failures
 - [ ] **SSE heartbeat** - Periodic `:ping` to prevent proxy timeouts

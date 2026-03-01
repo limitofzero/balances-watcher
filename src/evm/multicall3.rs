@@ -28,7 +28,6 @@ sol! {
             bytes returnData;
         }
 
-        // ---------- aggregate family ----------
         function aggregate(Call[] calls)
             public
             payable
