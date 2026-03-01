@@ -95,7 +95,7 @@ pub async fn get_balances(
             let balance_snapshot: HashMap<Address, String> = balance_snapshot
                 .clone()
                 .into_iter()
-                .map(|(address, balance)| (address, balance.to_string()))
+                .map(|(address, balance)| (address, balance.amount.to_string()))
                 .collect();
             BalanceEvent::BalanceUpdate(balance_snapshot)
         };

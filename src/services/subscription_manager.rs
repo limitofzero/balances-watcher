@@ -13,9 +13,17 @@ struct SubWithCounter {
     pub idle_since: Option<Instant>,
 }
 
+#[derive(Debug, Clone)]
+pub struct Balance {
+    pub amount: U256,
+    pub block_number: U256,
+}
+
+pub type BalanceSnapshot = HashMap<Address, Balance>;
+
 pub struct Subscription {
     pub sender: broadcast::Sender<BalanceEvent>,
-    pub balances_snapshot: RwLock<HashMap<Address, U256>>,
+    pub balances_snapshot: RwLock<BalanceSnapshot>,
     pub cancel_token: tokio_util::sync::CancellationToken,
     pub tokens: RwLock<HashSet<Address>>,
 }

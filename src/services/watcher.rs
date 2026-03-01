@@ -1,7 +1,7 @@
 use crate::evm::erc20::ERC20;
 use alloy::eips::BlockId;
 use alloy::{
-    primitives::{Address, U256},
+    primitives::Address,
     providers::{DynProvider, Provider},
     rpc::types::{Filter, Log, Topic},
     sol_types::SolEvent,
@@ -14,7 +14,8 @@ use thiserror::Error;
 use tokio::sync::RwLockWriteGuard;
 use tokio::time::interval;
 
-use crate::services::balances::BalanceCallCtx;
+use crate::services::balances::{BalanceCallCtx, BalancesWithBlock};
+use crate::services::subscription_manager::{Balance, BalanceSnapshot};
 use crate::{
     domain::{BalanceEvent, EvmNetwork},
     evm::wrapped::WrappedToken,
@@ -138,7 +139,7 @@ impl Watcher {
         sub: Arc<Subscription>,
     ) {
         let owner = ctx.owner;
-        let result = Self::get_tokens_balance(ctx, tokens, None).await;
+        let result = Self::get_tokens_balance(ctx, tokens, BlockId::latest()).await;
 
         let event = match result {
             Ok(balances) => {
@@ -173,8 +174,8 @@ impl Watcher {
     async fn get_tokens_balance(
         ctx: Arc<BalanceCallCtx>,
         tokens: &[Address],
-        block_id: Option<BlockId>,
-    ) -> Result<HashMap<Address, U256>, WatcherError> {
+        block_id: BlockId,
+    ) -> Result<BalancesWithBlock, WatcherError> {
         let owner = ctx.owner;
         let network = ctx.network;
         balances::get_balances(ctx, tokens, block_id)
@@ -322,8 +323,8 @@ impl Watcher {
     async fn fetch_erc20_and_eth_balance(
         ctx: Arc<BalanceCallCtx>,
         token: Address,
-        block_id: Option<BlockId>,
-    ) -> Result<HashMap<Address, U256>, WatcherError> {
+        block_id: BlockId,
+    ) -> Result<BalancesWithBlock, WatcherError> {
         let network = ctx.network;
         let owner = ctx.owner;
         let native_address = network.native_token_address();
@@ -346,7 +347,7 @@ impl Watcher {
         ctx: Arc<BalanceCallCtx>,
         log: &Log,
         weth_address: Address,
-    ) -> Result<HashMap<Address, U256>, WatcherError> {
+    ) -> Result<BalancesWithBlock, WatcherError> {
         let parsed_log = Self::parse_weth_logs(log)
             .map_err(|err| WatcherError::ParseLog(ctx.network, ctx.owner, err.to_string()))?;
 
@@ -354,7 +355,8 @@ impl Watcher {
             Some(WethEvents::Deposit(block_id)) => block_id,
             Some(WethEvents::Withdrawal(block_id)) => block_id,
             _ => None,
-        };
+        }
+        .unwrap_or(BlockId::latest());
 
         Self::fetch_erc20_and_eth_balance(ctx, weth_address, block_id).await
     }
@@ -466,7 +468,7 @@ impl Watcher {
                     tracing::info!("received erc20 transfer event: {:#?}", log);
 
                     let token_balance =
-                        Self::parse_transfer_event_and_get_balance(Arc::clone(&ctx), &log).await;
+                        Self::parse_transfer_event_and_fetch_balance(Arc::clone(&ctx), &log).await;
 
                     let event = match token_balance {
                         Some(token_balance) => {
@@ -495,9 +497,13 @@ impl Watcher {
         Ok(())
     }
 
+    // update snapshot with new balances
+    // first compare block_number, if it is bigger than in snapshot - update it
+    // if the balance is different - put it in diff
+    // return diff
     fn update_balances_and_take_diff(
-        mut snapshot: RwLockWriteGuard<HashMap<Address, U256>>,
-        new_balances: HashMap<Address, U256>,
+        mut snapshot: RwLockWriteGuard<BalanceSnapshot>,
+        (new_balances, block_number): BalancesWithBlock,
     ) -> HashMap<Address, String> {
         let mut diff: HashMap<Address, String> = HashMap::new();
         if new_balances.is_empty() {
@@ -508,23 +514,35 @@ impl Watcher {
         for (address, new_balance) in new_balances {
             let current_balance = snapshot.get_mut(&address);
             if let Some(current_balance) = current_balance {
-                if *current_balance != new_balance {
-                    diff.insert(address, new_balance.to_string());
-                    *current_balance = new_balance;
+                if current_balance.block_number < block_number {
+                    if current_balance.amount != new_balance {
+                        diff.insert(address, new_balance.to_string());
+                    }
+
+                    *current_balance = Balance {
+                        amount: new_balance,
+                        block_number,
+                    };
                 }
             } else {
                 diff.insert(address, new_balance.to_string());
-                snapshot.insert(address, new_balance);
+                snapshot.insert(
+                    address,
+                    Balance {
+                        amount: new_balance,
+                        block_number,
+                    },
+                );
             }
         }
 
         diff
     }
 
-    async fn parse_transfer_event_and_get_balance(
+    async fn parse_transfer_event_and_fetch_balance(
         ctx: Arc<BalanceCallCtx>,
         log: &Log,
-    ) -> Option<HashMap<Address, U256>> {
+    ) -> Option<BalancesWithBlock> {
         let Some(block_number) = log.block_number else {
             tracing::warn!("block number is undefined for network {}", ctx.network);
             return None;
@@ -542,12 +560,8 @@ impl Watcher {
             }
         };
 
-        Self::fetch_erc20_and_eth_balance(
-            ctx,
-            decoded_log.address(),
-            Some(BlockId::from(block_number)),
-        )
-        .await
-        .ok()
+        Self::fetch_erc20_and_eth_balance(ctx, decoded_log.address(), BlockId::from(block_number))
+            .await
+            .ok()
     }
 }
