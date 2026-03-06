@@ -5,6 +5,7 @@ use alloy::eips::BlockId;
 use alloy::primitives::{Address, U256};
 use alloy::providers::DynProvider;
 use alloy::sol_types::{SolCall, SolValue};
+use metrics::{counter, histogram};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -60,10 +61,12 @@ pub async fn fetch_balances_via_multicall(
         .call()
         .await
         .map_err(|e| ServiceError::BalancesMultiCallError(e.to_string()))?;
+    counter!("multicall_count_total").increment(1);
+    histogram!("multicall_duration_ms").record(t0.elapsed().as_millis() as f64);
 
     tracing::info!(
         time_ms = t0.elapsed().as_millis(),
-        "aggregate3 balances complete"
+        "tryBlockAndAggregate balances complete"
     );
 
     let mut balances: HashMap<Address, U256> = HashMap::with_capacity(erc20_tokens.len() + 1);
@@ -72,7 +75,7 @@ pub async fn fetch_balances_via_multicall(
     for (i, erc20_token) in erc20_tokens.iter().enumerate() {
         let resp = return_data.get(i).ok_or_else(|| {
             ServiceError::BalancesMultiCallError(
-                "multicall3: missing response at index={i} for token={token}".to_string(),
+                "multicall: missing response at index={i} for token={token}".to_string(),
             )
         })?;
 
@@ -111,7 +114,7 @@ pub async fn fetch_balances_via_multicall(
             balances.insert(native_address, balance);
         }
         Err(e) => {
-            tracing::error!(error = %e, "abi_decode failed for {}", native_address);
+            tracing::error!(error = %e, "abi_decode failed for getEthBalance");
         }
     }
 

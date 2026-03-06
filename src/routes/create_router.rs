@@ -1,4 +1,4 @@
-use crate::api::balances::create_sse_session;
+use crate::api::create_sse_session::create_sse_session;
 use crate::api::update_session::update_session;
 use crate::api::{balance::get_token_balance, create_session::create_session};
 use crate::app_state::AppState;

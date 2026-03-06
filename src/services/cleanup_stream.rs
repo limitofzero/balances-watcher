@@ -41,8 +41,8 @@ impl<S> Drop for CleanupStream<S> {
                 let _ = manager.unsubscribe(&key).await.inspect_err(|err| {
                     tracing::error!(
                         error = %err,
-                        "error when unsubscribe from sub for {}",
-                        key.owner,
+                        sub = %key,
+                        "error when unsubscribe",
                     );
                 });
             });

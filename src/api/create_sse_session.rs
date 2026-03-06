@@ -69,7 +69,7 @@ pub async fn create_sse_session(
                 message: e.to_string(),
             })?;
 
-    let weth_address = state.network_config.weth_address(&network);
+    let weth9_address = state.network_config.weth_address(&network);
 
     if is_first {
         let ctx = WatcherContext {
@@ -78,7 +78,7 @@ pub async fn create_sse_session(
             network,
             multicall3: *multicall3,
             ws_provider,
-            weth_address,
+            weth9_address,
         };
 
         Watcher::new(ctx, Arc::clone(&subscription))
@@ -88,6 +88,10 @@ pub async fn create_sse_session(
         let balance_snapshot = subscription.balances_snapshot.read().await;
 
         let event = if balance_snapshot.is_empty() {
+            tracing::error!(
+                sub = %sub_key,
+                "balance snapshot is empty"
+            );
             BalanceEvent::Error {
                 code: 500,
                 message: format!("Empty snapshot for {network} for {owner}"),
@@ -102,11 +106,10 @@ pub async fn create_sse_session(
         };
 
         let _ = subscription.sender.send(event).inspect_err(|err| {
-            tracing::error!(
+            tracing::info!(
                 error = %err,
-                "error when send balance_snapshot update for new client {} network {}",
-                owner,
-                network,
+                sub = %sub_key,
+                "error when send balance_snapshot update"
             );
         });
     }

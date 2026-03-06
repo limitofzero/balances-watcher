@@ -52,7 +52,7 @@ pub struct WatcherContext {
     pub network: EvmNetwork,
     pub multicall3: Address,
     pub ws_provider: DynProvider,
-    pub weth_address: Address,
+    pub weth9_address: Address,
 }
 
 pub struct Watcher {
@@ -85,13 +85,13 @@ impl Watcher {
             }
         }
 
-        match self.spawn_wrapped_events_listener().await {
+        match self.spawn_weth9_events_listener().await {
             Ok(()) => {}
             Err(err) => {
                 tracing::error!(
                     error = %err,
                     "error when spawn weth listeners for {}",
-                    self.ctx.weth_address,
+                    self.ctx.weth9_address,
                 );
             }
         }
@@ -192,16 +192,16 @@ impl Watcher {
      *
      * Need to sync wrap/unwrap txs to handle wrapped token balance
      */
-    async fn spawn_wrapped_events_listener(&self) -> Result<(), WatcherError> {
+    async fn spawn_weth9_events_listener(&self) -> Result<(), WatcherError> {
         let ctx = Arc::clone(&self.ctx);
-        let weth_address = ctx.weth_address;
+        let weth9_address = ctx.weth9_address;
 
         let event_signatures = vec![
             WrappedToken::Deposit::SIGNATURE_HASH,
             WrappedToken::Withdrawal::SIGNATURE_HASH,
         ];
         let filter = Filter::new()
-            .address(weth_address)
+            .address(weth9_address)
             .event_signature(event_signatures)
             .topic1(Topic::from(ctx.owner));
 
@@ -227,25 +227,24 @@ impl Watcher {
                 let ctx = Arc::clone(&balance_call_ctx);
 
                 Box::pin(async move {
-                    let event = match Self::parse_weth_logs_and_fetch_balance(
-                        ctx,
-                        &log,
-                        weth_address,
-                    )
-                    .await
-                    {
-                        Ok(balances) => {
-                            let balance_snapshot = sub.balances_snapshot.write().await;
-                            let diff =
-                                Self::update_balances_and_take_diff(balance_snapshot, balances);
+                    counter!("weth9_events_received_total").increment(1);
 
-                            (!diff.is_empty()).then_some(BalanceEvent::BalanceUpdate(diff))
-                        }
-                        Err(err) => Some(BalanceEvent::Error {
-                            code: 500,
-                            message: err.to_string(),
-                        }),
-                    };
+                    let event =
+                        match Self::parse_weth9_logs_and_fetch_balance(ctx, &log, weth9_address)
+                            .await
+                        {
+                            Ok(balances) => {
+                                let balance_snapshot = sub.balances_snapshot.write().await;
+                                let diff =
+                                    Self::update_balances_and_take_diff(balance_snapshot, balances);
+
+                                (!diff.is_empty()).then_some(BalanceEvent::BalanceUpdate(diff))
+                            }
+                            Err(err) => Some(BalanceEvent::Error {
+                                code: 500,
+                                message: err.to_string(),
+                            }),
+                        };
 
                     if let Some(event) = event {
                         let _ = sub.sender.send(event);
@@ -333,25 +332,24 @@ impl Watcher {
         let native_address = network.native_token_address();
         let tokens = vec![token, network.native_token_address()];
 
-        fetch_balances_via_multicall::fetch_balances_via_multicall(
-            ctx,
-            &tokens,
-            block_id,
-        ).await.map_err(|err| {
-            tracing::error!(
-                error = %err,
-                "error when get balance for tokens: {token}, {native_address}, for network: {network}"
-            );
-            WatcherError::GettingBalance(owner, network, err.to_string())
-        })
+        fetch_balances_via_multicall::fetch_balances_via_multicall(ctx, &tokens, block_id)
+            .await
+            .map_err(|err| {
+                tracing::error!(
+                    error = %err,
+                    network = %network,
+                    "error when get balance for tokens: {token}, {native_address}"
+                );
+                WatcherError::GettingBalance(owner, network, err.to_string())
+            })
     }
 
-    async fn parse_weth_logs_and_fetch_balance(
+    async fn parse_weth9_logs_and_fetch_balance(
         ctx: Arc<BalanceCallCtx>,
         log: &Log,
-        weth_address: Address,
+        weth9_address: Address,
     ) -> Result<BalancesWithBlock, WatcherError> {
-        let parsed_log = Self::parse_weth_logs(log)
+        let parsed_log = Self::parse_weth9_logs(log)
             .map_err(|err| WatcherError::ParseLog(ctx.network, ctx.owner, err.to_string()))?;
 
         let block_id = match parsed_log {
@@ -361,13 +359,13 @@ impl Watcher {
         }
         .unwrap_or(BlockId::latest());
 
-        Self::fetch_erc20_and_eth_balance(ctx, weth_address, block_id).await
+        Self::fetch_erc20_and_eth_balance(ctx, weth9_address, block_id).await
     }
 
     // parse WETH logs, search DEPOSIT/WITHDRAWAL events
     // if there is no DEPOSIT/WITHDRAWAL event signature in a log - return Error
     // otherwise return parsed event data
-    fn parse_weth_logs(log: &Log) -> Result<Option<WethEvents>, ParseWeb3LogsError> {
+    fn parse_weth9_logs(log: &Log) -> Result<Option<WethEvents>, ParseWeb3LogsError> {
         let topic0 = match log.topic0() {
             Some(topic0) => topic0,
             None => {
@@ -422,7 +420,7 @@ impl Watcher {
             return Ok(result);
         };
 
-        tracing::error!("unexpected topic0(WETH event): {:#?}", topic0);
+        tracing::error!("unexpected topic0(WETH9 event): {:#?}", topic0);
         Err(ParseWeb3LogsError::UnexpectedHashSignature)
     }
 
@@ -434,7 +432,7 @@ impl Watcher {
 
         self.spawn_erc20_transfer_listener_with_filter(from).await?;
         self.spawn_erc20_transfer_listener_with_filter(to).await?;
-        self.spawn_wrapped_events_listener().await?;
+        self.spawn_weth9_events_listener().await?;
 
         Ok(())
     }
@@ -467,9 +465,10 @@ impl Watcher {
                 let sub = Arc::clone(&sub);
                 let ctx = Arc::clone(&balance_call_ctx);
 
-                Box::pin(async move {
-                    tracing::info!("received erc20 transfer event: {:#?}", log);
+                tracing::info!("received erc20 transfer event: {:#?}", log);
+                counter!("erc20_event_received_total").increment(1);
 
+                Box::pin(async move {
                     let token_balance =
                         Self::parse_transfer_event_and_fetch_balance(Arc::clone(&ctx), &log).await;
 
