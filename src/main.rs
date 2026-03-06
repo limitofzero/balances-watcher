@@ -14,11 +14,16 @@ use crate::routes::create_router::create_router;
 use crate::tracing::init_tracing::init_tracing;
 use app_state::AppState;
 use config::network_config::NetworkConfig;
+use metrics_exporter_prometheus::PrometheusBuilder;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     init_tracing();
 
     let cfg = Args::from_env();
@@ -28,9 +33,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let network_cfg = NetworkConfig::init(&cfg);
 
+    let metrics_handler = PrometheusBuilder::new().install_recorder()?;
+
     let allowed_origins = network_cfg.allowed_origins.clone();
     let app_state = AppState::build(network_cfg).await;
-    let app = create_router(app_state, allowed_origins);
+    let app = create_router(app_state, metrics_handler, allowed_origins);
 
     let address: SocketAddr = cfg.bind.parse()?;
     ::tracing::info!("Listening to http://{}", address);

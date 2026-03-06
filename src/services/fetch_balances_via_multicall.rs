@@ -18,7 +18,7 @@ pub struct BalanceCallCtx {
 
 pub type BalancesWithBlock = (HashMap<Address, U256>, U256);
 
-pub async fn get_balances(
+pub async fn fetch_balances_via_multicall(
     ctx: Arc<BalanceCallCtx>,
     tokens: &[Address],
     block_id: BlockId,

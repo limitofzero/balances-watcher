@@ -9,6 +9,7 @@ use axum::{
     response::sse::{Event, Sse},
 };
 use futures::{Stream, StreamExt};
+use metrics::counter;
 use serde::Serialize;
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio_stream::wrappers::BroadcastStream;
@@ -24,7 +25,7 @@ struct ErrorBalanceSseEvent {
     message: String,
 }
 
-pub async fn get_balances(
+pub async fn create_sse_session(
     Path((network, owner)): Path<(EvmNetwork, Address)>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StreamError> {
@@ -61,7 +62,7 @@ pub async fn get_balances(
     let (rx, is_first, subscription) =
         state
             .sub_manager
-            .subscribe(sub_key.clone())
+            .subscribe(sub_key)
             .await
             .map_err(|e| StreamError {
                 code: 500,
@@ -110,8 +111,10 @@ pub async fn get_balances(
         });
     }
 
+    counter!("sse_connections_total").increment(1);
+    counter!("sse_connections_total_per_network", "network" => network.to_string()).increment(1);
+
     let manager_for_cleanup = Arc::clone(&state.sub_manager);
-    let key_for_cleanup = sub_key.clone();
 
     let sse_stream = BroadcastStream::new(rx).filter_map(|result| async move {
         match result {
@@ -139,7 +142,7 @@ pub async fn get_balances(
     });
 
     let cleanup_stream =
-        cleanup_stream::CleanupStream::new(sse_stream, manager_for_cleanup, key_for_cleanup);
+        cleanup_stream::CleanupStream::new(sse_stream, manager_for_cleanup, sub_key);
 
     Ok(Sse::new(cleanup_stream))
 }

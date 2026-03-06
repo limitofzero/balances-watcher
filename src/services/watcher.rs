@@ -8,18 +8,19 @@ use alloy::{
 };
 use futures::future::BoxFuture;
 use futures::StreamExt;
+use metrics::counter;
 use std::collections::HashMap;
 use std::{sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::sync::RwLockWriteGuard;
 use tokio::time::interval;
 
-use crate::services::balances::{BalanceCallCtx, BalancesWithBlock};
+use crate::services::fetch_balances_via_multicall::{BalanceCallCtx, BalancesWithBlock};
 use crate::services::subscription_manager::{Balance, BalanceSnapshot};
 use crate::{
     domain::{BalanceEvent, EvmNetwork},
     evm::wrapped::WrappedToken,
-    services::{balances, subscription_manager::Subscription},
+    services::{fetch_balances_via_multicall, subscription_manager::Subscription},
 };
 
 enum WethEvents {
@@ -178,7 +179,7 @@ impl Watcher {
     ) -> Result<BalancesWithBlock, WatcherError> {
         let owner = ctx.owner;
         let network = ctx.network;
-        balances::get_balances(ctx, tokens, block_id)
+        fetch_balances_via_multicall::fetch_balances_via_multicall(ctx, tokens, block_id)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get balances for {}: {}", owner, e);
@@ -290,9 +291,11 @@ impl Watcher {
                                     item = stream.next() => {
                                         match item {
                                             Some(log) => {
+                                                counter!("events_received_total").increment(1);
                                                 on_log(log).await;
                                             },
                                             None => {
+                                                counter!("ws_provider_disconnected_total").increment(1);
                                                 tracing::warn!("ws stream ended (disconnect). will resubscribe");
                                                 break;
                                             }
@@ -330,7 +333,7 @@ impl Watcher {
         let native_address = network.native_token_address();
         let tokens = vec![token, network.native_token_address()];
 
-        balances::get_balances(
+        fetch_balances_via_multicall::fetch_balances_via_multicall(
             ctx,
             &tokens,
             block_id,

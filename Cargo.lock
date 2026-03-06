@@ -1088,6 +1088,7 @@ dependencies = [
  "futures",
  "metrics",
  "metrics-exporter-prometheus",
+ "rustls",
  "serde",
  "thiserror 2.0.17",
  "tokio",
