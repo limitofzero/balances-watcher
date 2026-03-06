@@ -114,9 +114,6 @@ pub async fn create_sse_session(
         });
     }
 
-    counter!("sse_connections_total").increment(1);
-    counter!("sse_connections_total_per_network", "network" => network.to_string()).increment(1);
-
     let manager_for_cleanup = Arc::clone(&state.sub_manager);
 
     let sse_stream = BroadcastStream::new(rx).filter_map(|result| async move {
