@@ -94,7 +94,7 @@ pub async fn create_sse_session(
             );
             BalanceEvent::Error {
                 code: 500,
-                message: format!("Empty snapshot for {network} for {owner}"),
+                message: format!("Empty snapshot for {sub_key}"),
             }
         } else {
             let balance_snapshot: HashMap<Address, String> = balance_snapshot
