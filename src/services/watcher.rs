@@ -126,6 +126,7 @@ impl Watcher {
                 tokio::select! {
                     _ = cancel.cancelled() => { break; }
                     _ = interval.tick() => {
+                        counter!("snapshot_updater_runs_total").increment(1);
                         Self::fetch_balances_and_broadcast(Arc::clone(&balance_call_ctx), &tokens, Arc::clone(&sub)).await;
                     }
                 }
@@ -165,8 +166,8 @@ impl Watcher {
         };
 
         if let Some(event) = event {
-            let _ = sub.sender.send(event).inspect_err(|err| {
-                tracing::info!("unable to send update_snapshot event to clients: {err}");
+            let _ = sub.sender.send(event).inspect(|_| {
+                counter!("balance_updates_sent_total").increment(1);
             });
         }
     }
@@ -235,6 +236,7 @@ impl Watcher {
                         {
                             Ok(balances) => {
                                 let balance_snapshot = sub.balances_snapshot.write().await;
+                                counter!("partial_snapshot_updater_runs_total").increment(1);
                                 let diff =
                                     Self::update_balances_and_take_diff(balance_snapshot, balances);
 
@@ -247,7 +249,9 @@ impl Watcher {
                         };
 
                     if let Some(event) = event {
-                        let _ = sub.sender.send(event);
+                        let _ = sub.sender.send(event).inspect(|_| {
+                            counter!("balance_updates_sent_total").increment(1);
+                        });
                     }
                 })
             })
@@ -304,6 +308,7 @@ impl Watcher {
                             }
                         },
                         Err(err) => {
+                            counter!("ws_subscribe_errors_total").increment(1);
                             tracing::error!(error = %err, "error to subscribe on logs");
                         }
                     }
@@ -312,6 +317,7 @@ impl Watcher {
                     let delay = Duration::from_secs(1);
                     attempt = attempt.saturating_add(1);
                     tokio::time::sleep(delay).await;
+                    counter!("ws_reconnect_attempts_total").increment(1);
                 } => {}
             }
         }
@@ -349,8 +355,10 @@ impl Watcher {
         log: &Log,
         weth9_address: Address,
     ) -> Result<BalancesWithBlock, WatcherError> {
-        let parsed_log = Self::parse_weth9_logs(log)
-            .map_err(|err| WatcherError::ParseLog(ctx.network, ctx.owner, err.to_string()))?;
+        let parsed_log = Self::parse_weth9_logs(log).map_err(|err| {
+            counter!("parse_weth9_logs_failed_total").increment(1);
+            WatcherError::ParseLog(ctx.network, ctx.owner, err.to_string())
+        })?;
 
         let block_id = match parsed_log {
             Some(WethEvents::Deposit(block_id)) => block_id,
@@ -475,6 +483,7 @@ impl Watcher {
                     let event = match token_balance {
                         Some(token_balance) => {
                             let balance_snapshot = sub.balances_snapshot.write().await;
+                            counter!("partial_snapshot_updater_runs_total").increment(1);
                             let diff = Self::update_balances_and_take_diff(
                                 balance_snapshot,
                                 token_balance,
@@ -489,7 +498,9 @@ impl Watcher {
                     };
 
                     if let Some(event) = event {
-                        let _ = sub.sender.send(event);
+                        let _ = sub.sender.send(event).inspect(|_| {
+                            counter!("balance_updates_sent_total").increment(1);
+                        });
                     }
                 })
             })
@@ -546,17 +557,22 @@ impl Watcher {
         log: &Log,
     ) -> Option<BalancesWithBlock> {
         let Some(block_number) = log.block_number else {
-            tracing::warn!("block number is undefined for network {}", ctx.network);
+            tracing::warn!(
+                network = %ctx.network,
+                "block number is undefined"
+            );
             return None;
         };
 
         let decoded_log: Log<ERC20::Transfer> = match log.log_decode() {
             Ok(log) => log,
             Err(err) => {
+                counter!("parse_erc20_log_errors_total").increment(1);
                 tracing::error!(
                     error = %err,
-                    "error when parsing log for network {}",
-                    ctx.network,
+                    netowrk = %ctx.network,
+                    owner = %ctx.owner,
+                    "error when parse log",
                 );
                 return None;
             }

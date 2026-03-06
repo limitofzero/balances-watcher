@@ -55,14 +55,21 @@ pub async fn fetch_balances_via_multicall(
     });
 
     let t0 = Instant::now();
+    counter!("multicall_total").increment(1);
+
     let call_result = multicall3
         .tryBlockAndAggregate(false, calls)
         .block(block_id)
         .call()
         .await
-        .map_err(|e| ServiceError::BalancesMultiCallError(e.to_string()))?;
-    counter!("multicall_count_total").increment(1);
-    histogram!("multicall_duration_ms").record(t0.elapsed().as_millis() as f64);
+        .inspect(move |_| {
+            histogram!("multicall_duration_ms").record(t0.elapsed().as_millis() as f64);
+        })
+        .map_err(|e| {
+            counter!("multicall_failed_total").increment(1);
+            histogram!("multicall_duration_ms").record(t0.elapsed().as_millis() as f64);
+            ServiceError::BalancesMultiCallError(e.to_string())
+        })?;
 
     tracing::info!(
         time_ms = t0.elapsed().as_millis(),
@@ -98,7 +105,11 @@ pub async fn fetch_balances_via_multicall(
                 balances.insert(*erc20_token, balance);
             }
             Err(e) => {
-                tracing::error!(error = %e, "abi_decode failed for {}", erc20_token);
+                tracing::error!(
+                    error = %e,
+                    token = %erc20_token,
+                    "abi_decode failed\
+                ");
             }
         }
     }

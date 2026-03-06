@@ -140,14 +140,17 @@ impl TokenListFetcher {
             .await
             .inspect(move |_| {
                 counter!("token_list_load_total").increment(1);
-                histogram!("token_list_loaded_time_in_ms").record(t0.elapsed().as_secs_f64());
+                histogram!("token_list_loaded_time_in_ms").record(t0.elapsed().as_millis() as f64);
                 tracing::info!(
                     time_ms = ?t0.elapsed().as_millis(),
                     url = ?url,
                     "token list loaded"
                 );
             })
-            .map_err(|err| FetcherError::UnableToLoadList(url.clone(), err.to_string()))?
+            .map_err(|err| {
+                counter!("token_list_load_failed_total").increment(1);
+                FetcherError::UnableToLoadList(url.clone(), err.to_string())
+            })?
             .json()
             .await
             .map_err(|err| FetcherError::UnableToLoadList(url.clone(), err.to_string()))

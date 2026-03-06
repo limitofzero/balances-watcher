@@ -135,6 +135,7 @@ pub async fn create_sse_session(
                 sse_event
             }
             Err(err) => {
+                counter!("broadcast_lagged_total").increment(1);
                 tracing::error!(
                     error = %err,
                     "broadcast stream error",
