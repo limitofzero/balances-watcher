@@ -81,6 +81,11 @@ pub async fn create_sse_session(
             weth9_address,
         };
 
+        tracing::info!(
+            sub = %sub_key,
+            "create first sse subscription and spawn watchers"
+        );
+
         Watcher::new(ctx, Arc::clone(&subscription))
             .spawn_watchers(state.network_config.snapshot_interval)
             .await;
@@ -104,6 +109,11 @@ pub async fn create_sse_session(
                 .collect();
             BalanceEvent::BalanceUpdate(balance_snapshot)
         };
+
+        tracing::info!(
+            sub = %sub_key,
+            "sending first balance snapshot to new sse connection (full)"
+        );
 
         let _ = subscription.sender.send(event).inspect_err(|err| {
             tracing::info!(
