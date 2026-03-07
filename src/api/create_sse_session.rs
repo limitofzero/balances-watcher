@@ -11,8 +11,8 @@ use axum::{
 use futures::{Stream, StreamExt};
 use metrics::counter;
 use serde::Serialize;
-use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use std::sync::atomic::Ordering;
+use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio_stream::wrappers::BroadcastStream;
 
 #[derive(Serialize)]

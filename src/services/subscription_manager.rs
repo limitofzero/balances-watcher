@@ -4,8 +4,8 @@ use crate::services::errors::SubscriptionError;
 use alloy::primitives::{Address, U256};
 use metrics::{counter, gauge};
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, RwLock};
 
@@ -102,8 +102,7 @@ impl SubscriptionManager {
     pub async fn subscribe(
         &self,
         key: SubscriptionKey,
-    ) -> Result<(broadcast::Receiver<BalanceEvent>, Arc<Subscription>), SubscriptionError>
-    {
+    ) -> Result<(broadcast::Receiver<BalanceEvent>, Arc<Subscription>), SubscriptionError> {
         let mut subs = self.subscriptions.write().await;
 
         if let Some(existing) = subs.get_mut(&key) {

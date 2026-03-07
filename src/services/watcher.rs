@@ -35,9 +35,6 @@ pub enum WatcherError {
 
     #[error("Parse log error for network: {1}, owner: {2}: {0}")]
     ParseLog(EvmNetwork, Address, String),
-
-    #[error("spawn watchers error: {0}")]
-    SpawnWatcherError(String),
 }
 
 #[derive(Error, Debug, Clone)]
@@ -427,10 +424,7 @@ impl Watcher {
 
     // listent to erc20 transfer events for owner (in/out)
     // if an event is received - get balance for token(+ eth balance) and send it to clients
-    async fn spawn_erc20_transfer_listener_with_filter(
-        &self,
-        filter: Filter,
-    ) {
+    async fn spawn_erc20_transfer_listener_with_filter(&self, filter: Filter) {
         let ctx = Arc::clone(&self.ctx);
         let sub = Arc::clone(&self.sub);
         let cancel = sub.cancel_token.clone();
