@@ -9,7 +9,9 @@ use axum::{
     response::sse::{Event, Sse},
 };
 use futures::{Stream, StreamExt};
+use metrics::counter;
 use serde::Serialize;
+use std::sync::atomic::Ordering;
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -24,10 +26,16 @@ struct ErrorBalanceSseEvent {
     message: String,
 }
 
-pub async fn get_balances(
+pub async fn create_sse_session(
     Path((network, owner)): Path<(EvmNetwork, Address)>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StreamError> {
+    let sub_key = SubscriptionKey { owner, network };
+    tracing::info!(
+        sub = %sub_key,
+        "new sse connection request accepted"
+    );
+
     let provider = match state.providers.get(&network) {
         Some(provider) => provider.clone(),
         None => {
@@ -56,29 +64,37 @@ pub async fn get_balances(
         });
     }
 
-    let sub_key = SubscriptionKey { owner, network };
-
-    let (rx, is_first, subscription) =
+    let (rx, subscription) =
         state
             .sub_manager
-            .subscribe(sub_key.clone())
+            .subscribe(sub_key)
             .await
             .map_err(|e| StreamError {
                 code: 500,
                 message: e.to_string(),
             })?;
 
-    let weth_address = state.network_config.weth_address(&network);
+    let weth9_address = state.network_config.weth_address(&network);
 
-    if is_first {
+    let should_spawn_watchers = subscription
+        .watchers_spawned
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok();
+
+    if should_spawn_watchers {
         let ctx = WatcherContext {
             provider,
             owner,
             network,
             multicall3: *multicall3,
             ws_provider,
-            weth_address,
+            weth9_address,
         };
+
+        tracing::info!(
+            sub = %sub_key,
+            "create first sse subscription and spawn watchers"
+        );
 
         Watcher::new(ctx, Arc::clone(&subscription))
             .spawn_watchers(state.network_config.snapshot_interval)
@@ -87,9 +103,13 @@ pub async fn get_balances(
         let balance_snapshot = subscription.balances_snapshot.read().await;
 
         let event = if balance_snapshot.is_empty() {
+            tracing::error!(
+                sub = %sub_key,
+                "balance snapshot is empty"
+            );
             BalanceEvent::Error {
                 code: 500,
-                message: format!("Empty snapshot for {network} for {owner}"),
+                message: format!("Empty snapshot for {sub_key}"),
             }
         } else {
             let balance_snapshot: HashMap<Address, String> = balance_snapshot
@@ -100,18 +120,21 @@ pub async fn get_balances(
             BalanceEvent::BalanceUpdate(balance_snapshot)
         };
 
+        tracing::info!(
+            sub = %sub_key,
+            "sending first balance snapshot to new sse connection (full)"
+        );
+
         let _ = subscription.sender.send(event).inspect_err(|err| {
-            tracing::error!(
+            tracing::info!(
                 error = %err,
-                "error when send balance_snapshot update for new client {} network {}",
-                owner,
-                network,
+                sub = %sub_key,
+                "error when send balance_snapshot update"
             );
         });
     }
 
     let manager_for_cleanup = Arc::clone(&state.sub_manager);
-    let key_for_cleanup = sub_key.clone();
 
     let sse_stream = BroadcastStream::new(rx).filter_map(|result| async move {
         match result {
@@ -129,6 +152,7 @@ pub async fn get_balances(
                 sse_event
             }
             Err(err) => {
+                counter!("broadcast_lagged_total").increment(1);
                 tracing::error!(
                     error = %err,
                     "broadcast stream error",
@@ -139,7 +163,7 @@ pub async fn get_balances(
     });
 
     let cleanup_stream =
-        cleanup_stream::CleanupStream::new(sse_stream, manager_for_cleanup, key_for_cleanup);
+        cleanup_stream::CleanupStream::new(sse_stream, manager_for_cleanup, sub_key);
 
     Ok(Sse::new(cleanup_stream))
 }

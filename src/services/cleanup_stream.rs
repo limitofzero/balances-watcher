@@ -36,13 +36,13 @@ impl<S> Drop for CleanupStream<S> {
         if !self.cleaned_up {
             self.cleaned_up = true;
             let manager = Arc::clone(&self.manager);
-            let key = self.key.clone();
+            let key = self.key;
             tokio::spawn(async move {
                 let _ = manager.unsubscribe(&key).await.inspect_err(|err| {
                     tracing::error!(
                         error = %err,
-                        "error when unsubscribe from sub for {}",
-                        key.owner,
+                        sub = %key,
+                        "error when unsubscribe",
                     );
                 });
             });

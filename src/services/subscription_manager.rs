@@ -2,7 +2,9 @@ use crate::config::constants::BROADCAST_CHANNEL_CAPACITY;
 use crate::domain::{BalanceEvent, SubscriptionKey};
 use crate::services::errors::SubscriptionError;
 use alloy::primitives::{Address, U256};
+use metrics::{counter, gauge};
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, RwLock};
@@ -26,6 +28,7 @@ pub struct Subscription {
     pub balances_snapshot: RwLock<BalanceSnapshot>,
     pub cancel_token: tokio_util::sync::CancellationToken,
     pub tokens: RwLock<HashSet<Address>>,
+    pub watchers_spawned: AtomicBool,
 }
 
 pub struct SubscriptionManager {
@@ -51,6 +54,13 @@ impl SubscriptionManager {
             let mut watchet_tokens = existing.subscription.tokens.write().await;
             watchet_tokens.extend(tokens);
 
+            counter!("sessions_updated_total").increment(1);
+            tracing::info!(
+                sub = %key,
+                tokens_len = watchet_tokens.len(),
+                "session is updated"
+            );
+
             return Arc::clone(&existing.subscription);
         }
 
@@ -62,6 +72,7 @@ impl SubscriptionManager {
             balances_snapshot: RwLock::new(HashMap::new()),
             cancel_token: tokio_util::sync::CancellationToken::new(),
             tokens: RwLock::new(tokens),
+            watchers_spawned: AtomicBool::new(false),
         });
 
         let sub_with_counter = SubWithCounter {
@@ -72,7 +83,13 @@ impl SubscriptionManager {
 
         subs.insert(key, sub_with_counter);
 
-        tracing::info!("session was created with token len: {}", tokens_len);
+        counter!("sessions_created_total").increment(1);
+        gauge!("active_sessions").increment(1);
+        tracing::info!(
+            tokens_len = %tokens_len,
+            sub = %key,
+            "session is created"
+        );
 
         Arc::clone(&subscription)
     }
@@ -85,8 +102,7 @@ impl SubscriptionManager {
     pub async fn subscribe(
         &self,
         key: SubscriptionKey,
-    ) -> Result<(broadcast::Receiver<BalanceEvent>, bool, Arc<Subscription>), SubscriptionError>
-    {
+    ) -> Result<(broadcast::Receiver<BalanceEvent>, Arc<Subscription>), SubscriptionError> {
         let mut subs = self.subscriptions.write().await;
 
         if let Some(existing) = subs.get_mut(&key) {
@@ -96,8 +112,15 @@ impl SubscriptionManager {
                 .ok_or(SubscriptionError::TooManyClients)?;
             existing.idle_since = None;
             let receiver = existing.subscription.sender.subscribe();
-            let is_first = existing.clients == 1;
-            return Ok((receiver, is_first, Arc::clone(&existing.subscription)));
+
+            counter!("sse_connections_total").increment(1);
+            gauge!("sse_connections_active").increment(1);
+            tracing::info!(
+                sub = %key,
+                "sse connection created"
+            );
+
+            return Ok((receiver, Arc::clone(&existing.subscription)));
         }
 
         Err(SubscriptionError::NoSession)
@@ -112,10 +135,26 @@ impl SubscriptionManager {
                 .clients
                 .checked_sub(1)
                 .ok_or(SubscriptionError::ThereIsNoClients)?;
+
             if existing.clients == 0 {
                 existing.idle_since = Some(Instant::now());
+
+                counter!("sessions_expired_total").increment(1);
+                gauge!("active_sessions").decrement(1);
+                gauge!("sse_connections_active").decrement(1);
+                tracing::info!(
+                    sub = %key,
+                    "session expired"
+                );
+
                 return Ok(true);
             }
+
+            gauge!("sse_connections_active").decrement(1);
+            tracing::info!(
+                sub = %key,
+                "sse connection is closed"
+            );
 
             return Ok(false);
         }
@@ -150,7 +189,12 @@ impl SubscriptionManager {
 
             if should_remove {
                 sub.subscription.cancel_token.cancel();
-                tracing::info!(?key, "cleanup session");
+                counter!("sessions_expired_total").increment(1);
+                gauge!("active_sessions").decrement(1);
+                tracing::info!(
+                    key = %key,
+                    "subscription cleanup"
+                );
             }
 
             !should_remove

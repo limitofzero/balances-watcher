@@ -5,6 +5,7 @@ use alloy::eips::BlockId;
 use alloy::primitives::{Address, U256};
 use alloy::providers::DynProvider;
 use alloy::sol_types::{SolCall, SolValue};
+use metrics::{counter, histogram};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -18,7 +19,7 @@ pub struct BalanceCallCtx {
 
 pub type BalancesWithBlock = (HashMap<Address, U256>, U256);
 
-pub async fn get_balances(
+pub async fn fetch_balances_via_multicall(
     ctx: Arc<BalanceCallCtx>,
     tokens: &[Address],
     block_id: BlockId,
@@ -54,16 +55,25 @@ pub async fn get_balances(
     });
 
     let t0 = Instant::now();
+    counter!("multicall_total").increment(1);
+
     let call_result = multicall3
         .tryBlockAndAggregate(false, calls)
         .block(block_id)
         .call()
         .await
-        .map_err(|e| ServiceError::BalancesMultiCallError(e.to_string()))?;
+        .inspect(move |_| {
+            histogram!("multicall_duration_ms").record(t0.elapsed().as_millis() as f64);
+        })
+        .map_err(|e| {
+            counter!("multicall_failed_total").increment(1);
+            histogram!("multicall_duration_ms").record(t0.elapsed().as_millis() as f64);
+            ServiceError::BalancesMultiCallError(e.to_string())
+        })?;
 
     tracing::info!(
         time_ms = t0.elapsed().as_millis(),
-        "aggregate3 balances complete"
+        "tryBlockAndAggregate balances complete"
     );
 
     let mut balances: HashMap<Address, U256> = HashMap::with_capacity(erc20_tokens.len() + 1);
@@ -72,7 +82,7 @@ pub async fn get_balances(
     for (i, erc20_token) in erc20_tokens.iter().enumerate() {
         let resp = return_data.get(i).ok_or_else(|| {
             ServiceError::BalancesMultiCallError(
-                "multicall3: missing response at index={i} for token={token}".to_string(),
+                "multicall: missing response at index={i} for token={token}".to_string(),
             )
         })?;
 
@@ -95,7 +105,11 @@ pub async fn get_balances(
                 balances.insert(*erc20_token, balance);
             }
             Err(e) => {
-                tracing::error!(error = %e, "abi_decode failed for {}", erc20_token);
+                tracing::error!(
+                    error = %e,
+                    token = %erc20_token,
+                    "abi_decode failed\
+                ");
             }
         }
     }
@@ -111,7 +125,7 @@ pub async fn get_balances(
             balances.insert(native_address, balance);
         }
         Err(e) => {
-            tracing::error!(error = %e, "abi_decode failed for {}", native_address);
+            tracing::error!(error = %e, "abi_decode failed for getEthBalance");
         }
     }
 

@@ -1,4 +1,4 @@
-use crate::api::balances::get_balances;
+use crate::api::create_sse_session::create_sse_session;
 use crate::api::update_session::update_session;
 use crate::api::{balance::get_token_balance, create_session::create_session};
 use crate::app_state::AppState;
@@ -7,10 +7,15 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use metrics_exporter_prometheus::PrometheusHandle;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
-pub fn create_router(app_state: Arc<AppState>, allowed_origins: Vec<String>) -> Router {
+pub fn create_router(
+    app_state: Arc<AppState>,
+    prometheus_handler: PrometheusHandle,
+    allowed_origins: Vec<String>,
+) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::predicate(move |origin, _| {
             // if there no allowed origins in env, allow all origins
@@ -34,7 +39,11 @@ pub fn create_router(app_state: Arc<AppState>, allowed_origins: Vec<String>) -> 
         .allow_headers(Any);
 
     Router::new()
-        .route("/sse/{chain_id}/balances/{owner}", get(get_balances))
+        .route(
+            "/metrics",
+            get(move || async move { prometheus_handler.render() }),
+        )
+        .route("/sse/{chain_id}/balances/{owner}", get(create_sse_session))
         .route("/{chain_id}/sessions/{owner}", post(create_session))
         .route("/{chain_id}/sessions/{owner}", put(update_session))
         .route(
