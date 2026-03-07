@@ -140,7 +140,6 @@ impl SubscriptionManager {
                 existing.idle_since = Some(Instant::now());
 
                 counter!("sessions_expired_total").increment(1);
-                gauge!("active_sessions").decrement(1);
                 gauge!("sse_connections_active").decrement(1);
                 tracing::info!(
                     sub = %key,
