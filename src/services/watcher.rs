@@ -35,6 +35,9 @@ pub enum WatcherError {
 
     #[error("Parse log error for network: {1}, owner: {2}: {0}")]
     ParseLog(EvmNetwork, Address, String),
+
+    #[error("spawn watchers error: {0}")]
+    SpawnWatcherError(String),
 }
 
 #[derive(Error, Debug, Clone)]
@@ -74,27 +77,8 @@ impl Watcher {
     // spawn_snapshot_updater - spawn listener for snapshot update (every interval_secs)
     pub async fn spawn_watchers(&self, interval_secs: usize) {
         self.spawn_snapshot_updater(interval_secs).await;
-
-        match self.spawn_erc20_transfer_listeners().await {
-            Ok(()) => {}
-            Err(err) => {
-                tracing::error!(
-                    error = %err,
-                    "error when spawn erc20 listeners"
-                );
-            }
-        }
-
-        match self.spawn_weth9_events_listener().await {
-            Ok(()) => {}
-            Err(err) => {
-                tracing::error!(
-                    error = %err,
-                    "error when spawn weth listeners for {}",
-                    self.ctx.weth9_address,
-                );
-            }
-        }
+        self.spawn_erc20_transfer_listeners().await;
+        self.spawn_weth9_events_listener().await;
     }
 
     // watcher to request balances via multicall every interval_secs to have an actual state
@@ -193,7 +177,7 @@ impl Watcher {
      *
      * Need to sync wrap/unwrap txs to handle wrapped token balance
      */
-    async fn spawn_weth9_events_listener(&self) -> Result<(), WatcherError> {
+    async fn spawn_weth9_events_listener(&self) {
         let ctx = Arc::clone(&self.ctx);
         let weth9_address = ctx.weth9_address;
 
@@ -257,8 +241,6 @@ impl Watcher {
             })
             .await;
         });
-
-        Ok(())
     }
 
     // create a subscription to ws provider and run a loop to listen to logs
@@ -432,17 +414,15 @@ impl Watcher {
         Err(ParseWeb3LogsError::UnexpectedHashSignature)
     }
 
-    async fn spawn_erc20_transfer_listeners(&self) -> Result<(), WatcherError> {
+    async fn spawn_erc20_transfer_listeners(&self) {
         let ctx = Arc::clone(&self.ctx);
         let base = Filter::new().event_signature(ERC20::Transfer::SIGNATURE_HASH);
         let from = base.clone().topic1(Topic::from(ctx.owner));
         let to = base.clone().topic2(Topic::from(ctx.owner));
 
-        self.spawn_erc20_transfer_listener_with_filter(from).await?;
-        self.spawn_erc20_transfer_listener_with_filter(to).await?;
-        self.spawn_weth9_events_listener().await?;
-
-        Ok(())
+        self.spawn_erc20_transfer_listener_with_filter(from).await;
+        self.spawn_erc20_transfer_listener_with_filter(to).await;
+        self.spawn_weth9_events_listener().await;
     }
 
     // listent to erc20 transfer events for owner (in/out)
@@ -450,7 +430,7 @@ impl Watcher {
     async fn spawn_erc20_transfer_listener_with_filter(
         &self,
         filter: Filter,
-    ) -> Result<(), WatcherError> {
+    ) {
         let ctx = Arc::clone(&self.ctx);
         let sub = Arc::clone(&self.sub);
         let cancel = sub.cancel_token.clone();
@@ -506,8 +486,6 @@ impl Watcher {
             })
             .await;
         });
-
-        Ok(())
     }
 
     // update snapshot with new balances

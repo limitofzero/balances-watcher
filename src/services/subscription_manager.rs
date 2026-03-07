@@ -5,6 +5,7 @@ use alloy::primitives::{Address, U256};
 use metrics::{counter, gauge};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, RwLock};
 
@@ -27,6 +28,7 @@ pub struct Subscription {
     pub balances_snapshot: RwLock<BalanceSnapshot>,
     pub cancel_token: tokio_util::sync::CancellationToken,
     pub tokens: RwLock<HashSet<Address>>,
+    pub watchers_spawned: AtomicBool,
 }
 
 pub struct SubscriptionManager {
@@ -70,6 +72,7 @@ impl SubscriptionManager {
             balances_snapshot: RwLock::new(HashMap::new()),
             cancel_token: tokio_util::sync::CancellationToken::new(),
             tokens: RwLock::new(tokens),
+            watchers_spawned: AtomicBool::new(false),
         });
 
         let sub_with_counter = SubWithCounter {
@@ -99,7 +102,7 @@ impl SubscriptionManager {
     pub async fn subscribe(
         &self,
         key: SubscriptionKey,
-    ) -> Result<(broadcast::Receiver<BalanceEvent>, bool, Arc<Subscription>), SubscriptionError>
+    ) -> Result<(broadcast::Receiver<BalanceEvent>, Arc<Subscription>), SubscriptionError>
     {
         let mut subs = self.subscriptions.write().await;
 
@@ -110,7 +113,6 @@ impl SubscriptionManager {
                 .ok_or(SubscriptionError::TooManyClients)?;
             existing.idle_since = None;
             let receiver = existing.subscription.sender.subscribe();
-            let is_first = existing.clients == 1;
 
             counter!("sse_connections_total").increment(1);
             gauge!("sse_connections_active").increment(1);
@@ -119,7 +121,7 @@ impl SubscriptionManager {
                 "sse connection created"
             );
 
-            return Ok((receiver, is_first, Arc::clone(&existing.subscription)));
+            return Ok((receiver, Arc::clone(&existing.subscription)));
         }
 
         Err(SubscriptionError::NoSession)
@@ -134,6 +136,7 @@ impl SubscriptionManager {
                 .clients
                 .checked_sub(1)
                 .ok_or(SubscriptionError::ThereIsNoClients)?;
+
             if existing.clients == 0 {
                 existing.idle_since = Some(Instant::now());
 

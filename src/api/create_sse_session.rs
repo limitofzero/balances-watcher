@@ -12,6 +12,7 @@ use futures::{Stream, StreamExt};
 use metrics::counter;
 use serde::Serialize;
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
+use std::sync::atomic::Ordering;
 use tokio_stream::wrappers::BroadcastStream;
 
 #[derive(Serialize)]
@@ -29,6 +30,12 @@ pub async fn create_sse_session(
     Path((network, owner)): Path<(EvmNetwork, Address)>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StreamError> {
+    let sub_key = SubscriptionKey { owner, network };
+    tracing::info!(
+        sub = %sub_key,
+        "new sse connection request accepted"
+    );
+
     let provider = match state.providers.get(&network) {
         Some(provider) => provider.clone(),
         None => {
@@ -57,9 +64,7 @@ pub async fn create_sse_session(
         });
     }
 
-    let sub_key = SubscriptionKey { owner, network };
-
-    let (rx, is_first, subscription) =
+    let (rx, subscription) =
         state
             .sub_manager
             .subscribe(sub_key)
@@ -71,7 +76,12 @@ pub async fn create_sse_session(
 
     let weth9_address = state.network_config.weth_address(&network);
 
-    if is_first {
+    let should_spawn_watchers = subscription
+        .watchers_spawned
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok();
+
+    if should_spawn_watchers {
         let ctx = WatcherContext {
             provider,
             owner,
