@@ -25,6 +25,7 @@ jobs:
           envsubst < .github/k8s/service.yaml > ./k8s-output/service.yaml
           envsubst < .github/k8s/ingress.yaml > ./k8s-output/ingress.yaml
           cp .github/k8s/cluster-issuer.yaml ./k8s-output/cluster-issuer.yaml
+          cp .github/k8s/service-monitor.yaml ./k8s-output/service-monitor.yaml
         env:
           RUST_LOG: ${{ vars.RUST_LOG }}
           HTTP_BIND: ${{ vars.HTTP_BIND }}
@@ -58,5 +59,6 @@ jobs:
             kubectl apply -f /tmp/k8s-manifests/deployment.yaml
             kubectl apply -f /tmp/k8s-manifests/service.yaml
             kubectl apply -f /tmp/k8s-manifests/ingress.yaml
+            kubectl apply -f /tmp/k8s-manifests/service-monitor.yaml
             kubectl rollout restart deployment/balances-watcher
             kubectl rollout status deployment/balances-watcher
